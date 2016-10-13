@@ -1,7 +1,7 @@
 /* 
  * CS:APP Data Lab 
  * 
- * <Please put your name and userid here>
+ * Adrick Tench, adt953
  * 
  * bits.c - Source file with your solutions to the Lab.
  *          This is the file you will hand in to your instructor.
@@ -140,7 +140,7 @@ NOTES:
  *   Rating: 1
  */
 int bitOr(int x, int y) {
-  return 2;
+  return ~(~x & ~y);
 }
 /* 
  * thirdBits - return word with every third bit (starting from the LSB) set to 1
@@ -149,12 +149,9 @@ int bitOr(int x, int y) {
  *   Rating: 1
  */
 int thirdBits(void) {
-
-
-
-
-  return 2;
-
+  int x = 0x49;
+  int y = (x << 9) + 0x49;
+  return (y << 18) + y;
 }
 /* 
  * anyOddBit - return 1 if any odd-numbered bit in word set to 1
@@ -164,7 +161,11 @@ int thirdBits(void) {
  *   Rating: 2
  */
 int anyOddBit(int x) {
-    return 2;
+  int y = 0xAA;
+  y = (y << 8) | 0xAA;   
+  y = (y << 8) | 0xAA;   
+  y = (y << 8) | 0xAA;   
+  return !(!(x & y));
 }
 /* 
  * getByte - Extract byte n from word x
@@ -175,7 +176,7 @@ int anyOddBit(int x) {
  *   Rating: 2
  */
 int getByte(int x, int n) {
-  return 2;
+  return (x >> (n << 3)) & 0xFF;
 }
 /* 
  * replaceByte(x,n,c) - Replace byte n in x with c
@@ -187,7 +188,8 @@ int getByte(int x, int n) {
  *   Rating: 3
  */
 int replaceByte(int x, int n, int c) {
-  return 2;
+  int y = x & ~(0xFF << (n << 3));
+  return y | (c << (n << 3));
 }
 /*
  * bitParity - returns 1 if x contains an odd number of 0's
@@ -197,7 +199,12 @@ int replaceByte(int x, int n, int c) {
  *   Rating: 4
  */
 int bitParity(int x) {
-  return 2;
+  x ^= x >> 16;
+  x ^= x >> 8;
+  x ^= x >> 4;
+  x ^= x >> 2;
+  x ^= x >> 1;
+  return x & 1;
 }
 /* Two's complement arithmetic */
 /*
@@ -265,6 +272,8 @@ int isNonZero(int x) {
  *   Rating: 2
  */
 unsigned float_abs(unsigned uf) {
+  int exp = (uf >> 23) & 0xFF;
+  int frac = uf & 0x7FFFFF;
   return 2;
 }
 /* 
