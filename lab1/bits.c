@@ -1,7 +1,7 @@
 /* 
  * CS:APP Data Lab 
  * 
- * Adrick Tench, adt953
+ * Adrick Tench (adt953), Joon Park (hjp637) 
  * 
  * bits.c - Source file with your solutions to the Lab.
  *          This is the file you will hand in to your instructor.
@@ -140,6 +140,7 @@ NOTES:
  *   Rating: 1
  */
 int bitOr(int x, int y) {
+  /*De Morgan's Law*/
   return ~(~x & ~y);
 }
 /* 
@@ -149,6 +150,7 @@ int bitOr(int x, int y) {
  *   Rating: 1
  */
 int thirdBits(void) {
+  /*Generate the pattern manually with shifts and addition*/
   int x = 0x49;
   int y = (x << 9) + 0x49;
   return (y << 18) + y;
@@ -161,6 +163,7 @@ int thirdBits(void) {
  *   Rating: 2
  */
 int anyOddBit(int x) {
+  /*Make an appropriate mask, then check if not 0 by using two !'s*/
   int y = 0xAA;
   y = (y << 8) | 0xAA;   
   y = (y << 8) | 0xAA;   
@@ -176,6 +179,7 @@ int anyOddBit(int x) {
  *   Rating: 2
  */
 int getByte(int x, int n) {
+  /*Shift left an appropriate amount, mask*/
   return (x >> (n << 3)) & 0xFF;
 }
 /* 
@@ -188,6 +192,8 @@ int getByte(int x, int n) {
  *   Rating: 3
  */
 int replaceByte(int x, int n, int c) {
+  /*Mask to remove the byte to be replaced, then Or with the replacing Byte
+  after an appropriate shift*/
   int y = x & ~(0xFF << (n << 3));
   return y | (c << (n << 3));
 }
@@ -199,6 +205,7 @@ int replaceByte(int x, int n, int c) {
  *   Rating: 4
  */
 int bitParity(int x) {
+  /*Compress the Exclusive Or to the LSB, meaning will be 1 IFF odd parity*/
   x ^= x >> 16;
   x ^= x >> 8;
   x ^= x >> 4;
@@ -215,7 +222,9 @@ int bitParity(int x) {
  *   Rating: 1
  */
 int isTmin(int x) {
-  return 2;
+  /*IFF x is Tmin or 0, adding to itself gets 0
+xor with !x to make sure not 0*/
+  return !(x+x) ^ !x;
 }
 /* 
  * negate - return -x 
@@ -225,7 +234,8 @@ int isTmin(int x) {
  *   Rating: 2
  */
 int negate(int x) {
-  return 2;
+  /*flip all bits, add 1*/
+  return ~x + 1;
 }
 /* 
  * addOK - Determine if can compute x+y without overflow
@@ -246,7 +256,9 @@ int addOK(int x, int y) {
  *   Rating: 3
  */
 int isGreater(int x, int y) {
-  return 2;
+  /*negative if y < x, get MSB
+doesn't pass btest due to overflow issues*/
+  return (y + (~x + 1)) >> 31;
 }
 /* 
  * isNonZero - Check whether x is nonzero using
@@ -257,7 +269,8 @@ int isGreater(int x, int y) {
  *   Rating: 4 
  */
 int isNonZero(int x) {
-  return 2;
+  /*IFF x is not zero, x | -x will have a one in the MSB. Shift and mask.*/
+  return ((x | (~x + 1)) >> 31) & 1;
 }
 /* FP operations */
 /* 
@@ -272,9 +285,10 @@ int isNonZero(int x) {
  *   Rating: 2
  */
 unsigned float_abs(unsigned uf) {
-  int exp = (uf >> 23) & 0xFF;
-  int frac = uf & 0x7FFFFF;
-  return 2;
+  /*Mask to remove MSB. Check if NaN, return input, else return mask*/
+  int mask = uf & 0x7FFFFFFF;
+  if (mask > 0x7F800000) return uf;
+  else return mask;  
 }
 /* 
  * float_f2i - Return bit-level equivalent of expression (int) f
@@ -289,7 +303,26 @@ unsigned float_abs(unsigned uf) {
  *   Rating: 4
  */
 int float_f2i(unsigned uf) {
-  return 2;
+  /*check sign, get exponent; check range; factor in exponent*/
+  int sign = (uf >> 31) & 1;
+  int exp = ((uf >> 23) & 0xFF) - 127;
+  int result = 1;
+  if (exp > 24) {
+    return 0x80000000u;
+  }
+  else if (exp < 0) {
+    return 0;
+  }
+  while (exp > 0) {
+    exp--;
+    result *= 2;
+  }
+  if (sign) {
+    return -result;
+  }
+  else {
+    return result;
+  }
 }
 /* 
  * float_twice - Return bit-level equivalent of expression 2*f for
@@ -303,5 +336,24 @@ int float_f2i(unsigned uf) {
  *   Rating: 4
  */
 unsigned float_twice(unsigned uf) {
-  return 2;
+  /*get exp, frac, check for special cases; add one to exp in most cases,
+    shift frac if needed*/
+  int exp = (uf >> 23) & 0xFF;
+  int frac = uf & 0x7FFFFF;
+  if ( (exp == 0) && (frac == 0) ) {
+    return uf;
+  }
+  else if (exp == 0) {
+    if (frac & 0x400000) {
+      exp += 1;
+    }
+    frac = frac << 1;
+  }
+  else if (exp == 0xFF) {
+    return uf;
+  }
+  else {
+    exp += 1;
+  }
+  return ((uf & 0x80000000) | (exp << 23)) | frac;
 }
