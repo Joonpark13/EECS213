@@ -267,9 +267,13 @@ int addOK(int x, int y) {
  *   Rating: 3
  */
 int isGreater(int x, int y) {
-  /*negative if y < x, get MSB
-doesn't pass btest due to overflow issues*/
-  return (y + (~x + 1)) >> 31;
+  /*check signs. if signs same, then iff x is larger, sign of ~y + x is 0
+if signs not equal, vice versa */
+  int xSign = x >> 31;
+  int ySign = y >> 31;
+  int equal = (!(xSign ^ ySign)) & ((~y + x) >> 31); //gives 0 when x greater
+  int notEqual = xSign & !ySign; //gives 0 when x greater
+  return !(equal | notEqual);
 }
 /* 
  * isNonZero - Check whether x is nonzero using
