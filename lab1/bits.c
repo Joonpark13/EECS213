@@ -267,12 +267,9 @@ int addOK(int x, int y) {
  *   Rating: 3
  */
 int isGreater(int x, int y) {
-  /* Add x to negated y to get difference
-   * then check if difference is positive.
-   * xor with difference to make sure difference is not 0.
-   */
-  // DOES NOT PASS btest YET
-  return !((x + (~y + 1)) >> 31) ^ !(x + (~y + 1));
+  /*negative if y < x, get MSB
+doesn't pass btest due to overflow issues*/
+  return (y + (~x + 1)) >> 31;
 }
 /* 
  * isNonZero - Check whether x is nonzero using
@@ -283,10 +280,8 @@ int isGreater(int x, int y) {
  *   Rating: 4 
  */
 int isNonZero(int x) {
-  /*negative if y < x, get MSB
-doesn't pass btest due to overflow issues*/
-  //return (y + (~x + 1)) >> 31;
-  return 2;
+  /*IFF x is not zero, x | -x will have a one in the MSB. shift and mask*/
+  return ((x | (~x + 1)) >> 31) & 1;
 }
 /* FP operations */
 /* 
