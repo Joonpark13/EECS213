@@ -254,7 +254,7 @@ int addOK(int x, int y) {
    * overflow has occured.
    */
   int xSign = x >> 31;
-  int ySigSign = y >> 31;
+  int ySign = y >> 31;
   int sumSign = (x + y) >> 31;
 
   return !(!(xSign ^ ySign) & (xSign ^ sumSign));
