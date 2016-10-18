@@ -247,7 +247,17 @@ int negate(int x) {
  *   Rating: 3
  */
 int addOK(int x, int y) {
-  return 2;
+  /*
+   * Right shift 31 to get sign bit of x, y, and their sum.
+   * If sign of inputs are the same AND
+   * if sign of input is different than the sign of the sum,
+   * overflow has occured.
+   */
+  int xSign = x >> 31;
+  int ySigSign y >> 31;
+  int sumSign = (x + y) >> 31;
+
+  return !(!(xSign ^ ySign) & (xSign ^ sumSign));
 }
 /* 
  * isGreater - if x > y  then return 1, else return 0 
@@ -275,7 +285,8 @@ int isGreater(int x, int y) {
 int isNonZero(int x) {
   /*negative if y < x, get MSB
 doesn't pass btest due to overflow issues*/
-  return (y + (~x + 1)) >> 31;
+  //return (y + (~x + 1)) >> 31;
+  return 2;
 }
 /* FP operations */
 /* 
