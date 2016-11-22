@@ -37,6 +37,8 @@ team_t team = {
 
 /* single word (4) or double word (8) alignment */
 #define ALIGNMENT 8
+#define WSIZE 4 //for headers and footers
+#define LISTS 20 //number of free lists
 
 /* Following macros obtained from textbook, page 857 */
 
@@ -52,19 +54,31 @@ team_t team = {
 #define GET_ALLOC(p) (READ(p) & 0x1)
 
 /* Given block ptr bp, compute address of its header */
-#define HEADER(bp) ((char *)(bp) - ALIGNMENT)
+#define HEADER(bp) ((char *)(bp) - WSIZE)
+#define FOOTER(bp) ((char *)(bp) + GET_SIZE(HEADER(bp)) - ALIGNMENT)
+
+/* Given block ptr bp, compute address of (physically) next and previous blocks */
+#define NEXT(bp) ((char *)(bp) + GET_SIZE((char *)(bp) - WSIZE))
+#define PREVIOUS(bp) ((char *)(bp) - GET_SIZE((char *)(bp) - ALIGNMENT))
 
 /* end macros from textbook*/
 
-/* Given block ptr bp, compute address of previous and next */
-#define PREVIOUS(bp) (char *)(bp)
-#define NEXT(bp) ((char *)(bp) + 8) //pointer is size 8
+/* Given block ptr bp, compute address of predecessor and successor */
+#define PREDECESSOR(bp) (char *)(bp)
+#define SUCCESSOR(bp) ((char *)(bp) + 8) //pointer is size 8
 
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
 
 
 //#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
+
+/* Global variables */
+void *segregated_free_list[LISTS]
+
+/* Helper function headers */
+static void *extend_heap(size_t size);
+static void *coalesce(void *bp);
 
 /* 
  * mm_init - initialize the malloc package.
