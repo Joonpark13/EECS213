@@ -39,8 +39,13 @@ team_t team = {
 #define ALIGNMENT 8
 #define WSIZE 4 //for headers and footers
 #define LISTS 20 //number of free lists
+#define CHUNKSIZE (1<<12)
 
 /* Following macros obtained from textbook, page 857 */
+
+/* Min and Max of two values */
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
+#define MIN(x, y) ((x) > (y) ? (x) : (y))
 
 /* pack a size and allocated bit into word */
 #define PACK(size, alloc) ((size) | (alloc))
@@ -80,11 +85,92 @@ void *segregated_free_list[LISTS]
 static void *extend_heap(size_t size);
 static void *coalesce(void *bp);
 
+/* Helper functions */
+static void *extend_heap(size_t words)
+{
+    char *bp;                   
+    size_t size;
+    
+    if ((bp = mem_sbrk(size)) == (void *)-1)
+        return NULL;
+    
+    // Set headers and footer 
+    WRITE(HEADER(bp), PACK(size, 0));  
+    WRITE(FOOTER(bp), PACK(size, 0));   
+    WRITE(HEADER(NEXT(bp)), PACK(0, 1)); 
+    //insert_node(bp, size); need to insert new node into the right free list
+    
+    /* Coalesce if the previous block was free */
+    return coalesce(bp);
+}
+
+static void *coalesce(void *bp)
+{
+    size_t prev_alloc = GET_ALLOC(HEADER(PREVIOUS(bp)));
+    size_t next_alloc = GET_ALLOC(HEADER(NEXT(bp)));
+    size_t size = GET_SIZE(HEADER(bp));
+    
+
+    if (prev_alloc && next_alloc) {                         // Case 1
+        return bp;
+    }
+    else if (prev_alloc && !next_alloc) {                   // Case 2
+        //delete_node(bp); need to delete nodes from free list
+        //delete_node(NEXT(bp));
+        size += GET_SIZE(HEADER(NEXT(bp)));
+        WRITE(HEADER(bp), PACK(size, 0));
+        WRITE(FOOTER(bp), PACK(size, 0));
+    } else if (!prev_alloc && next_alloc) {                 // Case 3 
+        //delete_node(ptr);
+        //delete_node(PREVIOUS(bp));
+        size += GET_SIZE(HEADER(PREVIOUS(bp)));
+        WRITE(FOOTER(bp), PACK(size, 0));
+        WRITE(HEADER(PREVIOUS(bp)), PACK(size, 0));
+        bp = PREVIOUS(bp);
+    } else {                                                // Case 4
+        //delete_node(bp);
+        //delete_node(PREVIOUS(bp));
+        //delete_node(NEXT(bp));
+        size += GET_SIZE(HEADER(PREVIOUS(bp))) + GET_SIZE(HEADER(NEXT(bp)));
+        WRITE(HEADER(PREVIOUS(bp)), PACK(size, 0));
+        WRITE(FOOTER(NEXT(bp)), PACK(size, 0));
+        bp = PREVIOUS(bp);
+    }
+    
+    //insert_node(bp, size);
+    
+    return bp;
+}
+
 /* 
- * mm_init - initialize the malloc package.
+ * mm_init - initialize the malloc package. Returns -1 if problem, 0 otherwise
  */
 int mm_init(void)
 {
+    int list;
+    char *start; //pointer to beginning of heap
+    
+    /* Initialize segregated free list */
+    for (list = 0; list < LISTS; list++) {
+        segregated_free_list[list] = NULL;
+    }
+    
+    /* Obtained from textbook page 858 */
+    
+    /* Create initial empty heap */
+    if ((start = mem_sbrk(4*WSIZE)) == (void *)-1)
+        return -1;
+    WRITE(start, 0);                              // Alignment padding
+    WRITE(start + (1*WSIZE), PACK(ALIGNMENT, 1)); // Prologue header
+    WRITE(start + (2*WSIZE), PACK(ALIGNMENT, 1)); // Prologue footer
+    WRITE(start + (3*WSIZE), PACK(PACK(0, 1));    // Epilogue footer
+    
+    /* Extend empty heap with free block of CHUNKSIZE bytes */
+    if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
+        return -1;
+    
+    /* End obtained from textbook */
+    
     return 0;
 }
 
