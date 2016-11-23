@@ -72,6 +72,9 @@ team_t team = {
 #define PREDECESSOR(bp) (char *)(bp)
 #define SUCCESSOR(bp) ((char *)(bp) + 8) //pointer is size 8
 
+// Store predecessor or successor pointer for free blocks; works like write but ensures casting 
+#define SET_PTR(p, val) (*(unsigned int *)(p) = (unsigned int)(val))
+
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
 
@@ -84,12 +87,20 @@ void *segregated_free_list[LISTS]
 /* Helper function headers */
 static void *extend_heap(size_t size);
 static void *coalesce(void *bp);
+static void insert_node(void *bp);
+static void delete_node(void *bp);
 
 /* Helper functions */
+
+/*
+* Extend heap: extends heap by aligned number of bytes, coalescing as needed and modifying segregated list
+*/
 static void *extend_heap(size_t words)
 {
     char *bp;                   
     size_t size;
+    
+    size = ALIGN(words);
     
     if ((bp = mem_sbrk(size)) == (void *)-1)
         return NULL;
@@ -98,12 +109,15 @@ static void *extend_heap(size_t words)
     WRITE(HEADER(bp), PACK(size, 0));  
     WRITE(FOOTER(bp), PACK(size, 0));   
     WRITE(HEADER(NEXT(bp)), PACK(0, 1)); 
-    //insert_node(bp, size); need to insert new node into the right free list
+    insert_node(bp); //need to insert new node into the right free list
     
     /* Coalesce if the previous block was free */
     return coalesce(bp);
 }
 
+/*
+* Coalesce: combines a free block with free blocks next to it in physical memory, modifying segregated list as needed
+*/
 static void *coalesce(void *bp)
 {
     size_t prev_alloc = GET_ALLOC(HEADER(PREVIOUS(bp)));
@@ -121,7 +135,7 @@ static void *coalesce(void *bp)
         WRITE(HEADER(bp), PACK(size, 0));
         WRITE(FOOTER(bp), PACK(size, 0));
     } else if (!prev_alloc && next_alloc) {                 // Case 3 
-        //delete_node(ptr);
+        //delete_node(bp);
         //delete_node(PREVIOUS(bp));
         size += GET_SIZE(HEADER(PREVIOUS(bp)));
         WRITE(FOOTER(bp), PACK(size, 0));
@@ -137,9 +151,97 @@ static void *coalesce(void *bp)
         bp = PREVIOUS(bp);
     }
     
-    //insert_node(bp, size);
+    insert_node(bp); //put newly coalesced node into correct free list
     
     return bp;
+}
+
+/*
+* Insert_node: Places a node on the appropriate segregated list, and keeps the list sorted by ascending size
+* Each segregated list spans values from [2^n, 2^(n+1)) in segregated_free_list[n]
+*/
+static void insert_node(void *bp) {
+  int list = 0;
+  void *search_ptr = bp;
+  void *insert_ptr = NULL;
+  size_t size = GET_SIZE(HEADER(bp));
+  
+  /* Select segregated list */
+  while ((list < LISTS - 1) && (size > 1)) {
+    size >>= 1;
+    list++;
+  }
+  
+  /* Select location on list to insert pointer while keeping list
+     organized by byte size in ascending order. To insert after insert_ptr, before search_ptr */
+  search_ptr = segregated_free_list[list];
+  while ((search_ptr != NULL) && (size > GET_SIZE(HEADER(search_ptr)))) {
+    insert_ptr = search_ptr;
+    search_ptr = PREDECESSOR(search_ptr);
+  }
+  
+  /* Set predecessor and successor */
+  if (search_ptr != NULL) {
+    if (insert_ptr != NULL) { //Case 1: middle of list
+      SET_PTR(PREDECESSOR(bp), search_ptr); 
+      SET_PTR(SUCCESSOR(search_ptr), bp);
+      SET_PTR(SUCCESSOR(bp), insert_ptr);
+      SET_PTR(PREDECESSOR(insert_ptr), bp);
+    } else { //Case 2: beginning of list
+      SET_PTR(PREDECESSOR(bp), search_ptr); 
+      SET_PTR(SUCCESSOR(search_ptr), bp);
+      SET_PTR(SUCCESSOR(bp), NULL);
+      
+      /* Add block to appropriate list */
+      segegated_free_list[list] = bp;
+    }
+  } else {
+    if (insert_ptr != NULL) { //Case 3: end of list
+      SET_PTR(PREDECESSOR(bp), NULL);
+      SET_PTR(SUCCESSOR(bp), insert_ptr);
+      SET_PTR(PREDECESSOR(insert_ptr), bp);
+    } else { //Case 4: only item on list
+      SET_PTR(PREDECESSOR(bp), NULL);
+      SET_PTR(SUCCESSOR(bp), NULL);
+      
+      /* Add block to appropriate list */
+      segregated_free_list[list] = bp;
+    }
+  }
+
+  return;
+}
+
+/*
+* delete_node: Removes node from the relevant segregated list
+*/
+static void delete_node(void *bp) {
+    int list = 0;
+    size_t size = GET_SIZE(HEADER(bp));
+    
+    // Select segregated list 
+    while ((list < LISTS - 1) && (size > 1)) {
+        size >>= 1;
+        list++;
+    }
+    
+    if (PREDECESSOR(bp) != NULL) {
+        if (SUCCESSSOR(bp) != NULL) { //Case 1: middle of list
+            SET_PTR(SUCCESSOR(PREDECESSOR(bp)), SUCCESSOR(bp));
+            SET_PTR(PREDECESSOR(SUCCESSOR(bp)), PREDECESSOR(bp));
+        } else { //Case 2: end of list
+            SET_PTR(SUCCESSOR(PREDECESSOR(ptr)), NULL);
+            segregated_free_list[list] = PREDECESSOR(bp);
+        }
+    } else {
+        if (SUCCESSOR(bp) != NULL) { // beginning of list
+            SET_PTR(PREDECESSOR(SUCCESSOR(bp)), NULL);
+        } else { //Case 4: only item on list
+            segregated_free_list[list] = NULL;
+        }
+    }
+    
+    return;
 }
 
 /* 
