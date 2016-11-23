@@ -83,7 +83,7 @@ team_t team = {
 //#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 /* Global variables */
-void *segregated_free_list[LISTS]
+void *segregated_free_list[LISTS];
 char *heap_start;
 
 /* Helper function headers */
@@ -136,22 +136,22 @@ static void *coalesce(void *bp)
         return bp;
     }
     else if (prev_alloc && !next_alloc) {                   // Case 2
-        //delete_node(bp); need to delete nodes from free list
-        //delete_node(NEXT(bp));
+        delete_node(bp); //need to delete nodes from free list
+        delete_node(NEXT(bp));
         size += GET_SIZE(HEADER(NEXT(bp)));
         WRITE(HEADER(bp), PACK(size, 0));
         WRITE(FOOTER(bp), PACK(size, 0));
     } else if (!prev_alloc && next_alloc) {                 // Case 3 
-        //delete_node(bp);
-        //delete_node(PREVIOUS(bp));
+        delete_node(bp);
+        delete_node(PREVIOUS(bp));
         size += GET_SIZE(HEADER(PREVIOUS(bp)));
         WRITE(FOOTER(bp), PACK(size, 0));
         WRITE(HEADER(PREVIOUS(bp)), PACK(size, 0));
         bp = PREVIOUS(bp);
     } else {                                                // Case 4
-        //delete_node(bp);
-        //delete_node(PREVIOUS(bp));
-        //delete_node(NEXT(bp));
+        delete_node(bp);
+        delete_node(PREVIOUS(bp));
+        delete_node(NEXT(bp));
         size += GET_SIZE(HEADER(PREVIOUS(bp))) + GET_SIZE(HEADER(NEXT(bp)));
         WRITE(HEADER(PREVIOUS(bp)), PACK(size, 0));
         WRITE(FOOTER(NEXT(bp)), PACK(size, 0));
