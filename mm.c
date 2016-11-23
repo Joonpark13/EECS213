@@ -201,7 +201,7 @@ static void insert_node(void *bp)
       SET_PTR(SUCCESSOR(bp), NULL);
       
       /* Add block to appropriate list */
-      segegated_free_list[list] = bp;
+      segregated_free_list[list] = bp;
     }
   } else {
     if (insert_ptr != NULL) { //Case 3: end of list
@@ -235,11 +235,11 @@ static void delete_node(void *bp)
     }
     
     if (PREDECESSOR(bp) != NULL) {
-        if (SUCCESSSOR(bp) != NULL) { //Case 1: middle of list
+        if (SUCCESSOR(bp) != NULL) { //Case 1: middle of list
             SET_PTR(SUCCESSOR(PREDECESSOR(bp)), SUCCESSOR(bp));
             SET_PTR(PREDECESSOR(SUCCESSOR(bp)), PREDECESSOR(bp));
         } else { //Case 2: end of list
-            SET_PTR(SUCCESSOR(PREDECESSOR(ptr)), NULL);
+            SET_PTR(SUCCESSOR(PREDECESSOR(bp)), NULL);
             segregated_free_list[list] = PREDECESSOR(bp);
         }
     } else {
@@ -315,7 +315,9 @@ int mm_check(void)
     size_t size;
     
     /* Check the segregated free list to ensure all entries are free */
-    for (int list = 0; list < LISTS; list++) { //scan through each free list
+	
+    int list = 0;
+    while (list < LISTS) { //scan through each free list
         bp = segregated_free_list[list];
         while (bp != NULL) {
             if (GET_ALLOC(bp)) { //if list is allocated, error and break to next segregated list
@@ -325,6 +327,7 @@ int mm_check(void)
             }
             bp = PREDECESSOR(bp);
         }
+	list++;
     }
     
     /* Check prologue header */
@@ -334,7 +337,8 @@ int mm_check(void)
     }
     
     /* Check user blocks */
-    for (bp = heap_start; GET_SIZE(HEADER(bp)) > 0; bp = NEXT(bp)) {
+    bp = heap_start;
+    while (GET_SIZE(HEADER(bp)) > 0) {
         /* 
         * add checks for: 
         * is every free block in correct free list? 
@@ -342,6 +346,7 @@ int mm_check(void)
         * are there overlapping allocated blocks?
         */
         break;
+	bp = NEXT(bp);
     }
     
     /* Check epilogue header */
@@ -374,7 +379,7 @@ int mm_init(void)
     WRITE(start, 0);                              // Alignment padding
     WRITE(start + (1*WSIZE), PACK(ALIGNMENT, 1)); // Prologue header
     WRITE(start + (2*WSIZE), PACK(ALIGNMENT, 1)); // Prologue footer
-    WRITE(start + (3*WSIZE), PACK(PACK(0, 1));    // Epilogue header
+    WRITE(start + (3*WSIZE), PACK(0, 1));    // Epilogue header
     heap_start = start + ALIGNMENT; //heap starts past prologue header
     
     /* Extend empty heap with free block of CHUNKSIZE bytes */
@@ -412,7 +417,7 @@ void mm_free(void *ptr)
  */
 void *mm_realloc(void *ptr, size_t size)
 {
-    void *oldptr = ptr;
+    /* void *oldptr = ptr;
     void *newptr;
     size_t copySize;
     
@@ -424,7 +429,9 @@ void *mm_realloc(void *ptr, size_t size)
       copySize = size;
     memcpy(newptr, oldptr, copySize);
     mm_free(oldptr);
-    return newptr;
+    return newptr; 
+    */
+    return ptr;
 }
 
 
