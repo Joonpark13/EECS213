@@ -40,6 +40,7 @@ team_t team = {
 #define WSIZE 4 //for headers and footers
 #define LISTS 20 //number of free lists
 #define CHUNKSIZE (1<<12)
+#define MINBLOCK 16 //minimum block size (8 byte alignment + 4 byte headers and footers)
 
 /* Following macros obtained from textbook, page 857 */
 
@@ -89,6 +90,8 @@ static void *extend_heap(size_t size);
 static void *coalesce(void *bp);
 static void insert_node(void *bp);
 static void delete_node(void *bp);
+static void *find_fit(size_t asize);
+static void place(void *bp, size_t asize);
 
 /* Helper functions */
 
@@ -160,7 +163,8 @@ static void *coalesce(void *bp)
 * Insert_node: Places a node on the appropriate segregated list, and keeps the list sorted by ascending size
 * Each segregated list spans values from [2^n, 2^(n+1)) in segregated_free_list[n]
 */
-static void insert_node(void *bp) {
+static void insert_node(void *bp) 
+{
   int list = 0;
   void *search_ptr = bp;
   void *insert_ptr = NULL;
@@ -215,7 +219,8 @@ static void insert_node(void *bp) {
 /*
 * delete_node: Removes node from the relevant segregated list
 */
-static void delete_node(void *bp) {
+static void delete_node(void *bp) 
+{
     int list = 0;
     size_t size = GET_SIZE(HEADER(bp));
     
@@ -239,6 +244,56 @@ static void delete_node(void *bp) {
         } else { //Case 4: only item on list
             segregated_free_list[list] = NULL;
         }
+    }
+    
+    return;
+}
+
+/*
+* find_fit: performs first-fit search of the segregated free list, which is sorted by size
+*/
+static void *find_fit(size_t asize)
+{
+    void *bp;
+    int list = 0;
+    size_t size = asize;
+    
+    /* Select segregated list */
+    while ((list < LISTS - 1) && (size > 1)) {
+        size >>= 1;
+        list++;
+    }
+    
+    bp = segregated_free_list[list]; //set bp to the appropriate free list
+    
+    /* Search for first fit on selected list */
+    while ((bp != NULL) && (asize > GET_SIZE(HEADER(bp)))) {
+        bp = PREDECESSOR(bp);
+    }
+    
+    return bp;
+}
+
+/*
+* place: puts the requested block at the beginning of the located free block, splitting iff the remainder >= min block size
+*/
+static void place(void *bp, size_t asize)
+{
+    size_t size = GET_SIZE(HEADER(bp));
+    
+    delete_node(bp); //remove from free list
+    
+    if ((size - asize) >= MINBLOCK) { //Case 1: split
+        WRITE(HEADER(bp), PACK(asize, 1));
+        WRITE(FOOTER(bp), PACK(asize, 1));
+        bp = NEXT(bp);
+        WRITE(HEADER(bp), PACK(size-asize, 0));
+        WRITE(FOOTER(bp), PACK(size-asize, 0));
+        insert_node(bp); //add new node to free list
+    }
+    else { //Case 2: don't split
+        WRITE(HEADER(bp), PACK(size, 1));
+        WRITE(FOOTER(bp), PACK(size, 1));
     }
     
     return;
