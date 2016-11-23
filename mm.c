@@ -84,6 +84,7 @@ team_t team = {
 
 /* Global variables */
 void *segregated_free_list[LISTS]
+char *heap_start;
 
 /* Helper function headers */
 static void *extend_heap(size_t size);
@@ -92,6 +93,9 @@ static void insert_node(void *bp);
 static void delete_node(void *bp);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
+
+/* Heap check header */
+int mm_check(void);
 
 /* Helper functions */
 
@@ -299,6 +303,56 @@ static void place(void *bp, size_t asize)
     return;
 }
 
+/*
+* mm_check: checks the heap for the following, returns 0 if errors and 1 otherwise:
+* are all items in free list marked as free?
+* are the prologue and epilogue blocks correct?
+*/
+int mm_check(void)
+{
+    int check = 1; //set default return, no errors
+    void *bp;
+    size_t size;
+    
+    /* Check the segregated free list to ensure all entries are free */
+    for (int list = 0; list < LISTS; list++) { //scan through each free list
+        bp = segregated_free_list[list];
+        while (bp != NULL) {
+            if (GET_ALLOC(bp)) { //if list is allocated, error and break to next segregated list
+                check = 0;
+                printf("Error: free list %d contains allocated block(s)\n", list);
+                break;
+            }
+            bp = PREDECESSOR(bp);
+        }
+    }
+    
+    /* Check prologue header */
+    if ((GET_SIZE(HEADER(heap_start)) != ALIGNMENT) || !GET_ALLOC(HEADER(heap_start))) {
+        check = 0;
+	    printf("Bad prologue header\n");
+    }
+    
+    /* Check user blocks */
+    for (bp = heap_start; GET_SIZE(HEADER(bp)) > 0; bp = NEXT(bp)) {
+        /* 
+        * add checks for: 
+        * is every free block in correct free list? 
+        * are there contiguous free blocks? (i.e. blocks that should have been coalesced)
+        * are there overlapping allocated blocks?
+        */
+        break;
+    }
+    
+    /* Check epilogue header */
+    if ((GET_SIZE(HEADER(bp)) != 0) || !(GET_ALLOC(HEADER(bp)))) {
+        check = 0;
+	    printf("Bad epilogue header\n");
+    }
+    
+    return check;
+}
+
 /* 
  * mm_init - initialize the malloc package. Returns -1 if problem, 0 otherwise
  */
@@ -320,7 +374,8 @@ int mm_init(void)
     WRITE(start, 0);                              // Alignment padding
     WRITE(start + (1*WSIZE), PACK(ALIGNMENT, 1)); // Prologue header
     WRITE(start + (2*WSIZE), PACK(ALIGNMENT, 1)); // Prologue footer
-    WRITE(start + (3*WSIZE), PACK(PACK(0, 1));    // Epilogue footer
+    WRITE(start + (3*WSIZE), PACK(PACK(0, 1));    // Epilogue header
+    heap_start = start + ALIGNMENT; //heap starts past prologue header
     
     /* Extend empty heap with free block of CHUNKSIZE bytes */
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
@@ -337,8 +392,8 @@ int mm_init(void)
  */
 void *mm_malloc(size_t size)
 {
-  //int newsize = ALIGN(size + SIZE_T_SIZE);
-  size_t newsize = (ALIGN(size) + ALIGNMENT) // align size and add space for header  
+    //int newsize = ALIGN(size + SIZE_T_SIZE);
+    //size_t newsize = (ALIGN(size) + ALIGNMENT) // align size and add space for header  
 
     /*ignore spurious request*/
     if (size == 0)
