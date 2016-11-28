@@ -313,12 +313,13 @@ static void place(void *bp, size_t asize)
 int mm_check(void)
 {
     int check = 1; //set default return, no errors
-    void *bp;
+    void *bp; 
+    void *current;
     size_t size;
+    int list = 0;
+    int found;
     
     /* Check the segregated free list to ensure all entries are free */
-	
-    int list = 0;
     while (list < LISTS) { //scan through each free list
         bp = segregated_free_list[list];
 	list++;
@@ -335,26 +336,47 @@ int mm_check(void)
     /* Check prologue header */
     if ((GET_SIZE(HEADER(heap_start)) != DSIZE) || !GET_ALLOC(HEADER(heap_start))) {
         check = 0;
-	    printf("Bad prologue header\n");
+	printf("Bad prologue header\n");
     }
     
     /* Check user blocks */
     bp = heap_start;
-    while (GET_SIZE(HEADER(bp)) > 0) {
+    size = GET_SIZE(HEADER(bp));
+    while (size > 0) {
         /* 
-        * add checks for: 
-        * is every free block in correct free list? 
+        * add checks for:
         * are there contiguous free blocks? (i.e. blocks that should have been coalesced)
         * are there overlapping allocated blocks?
         */
-        break;
+	size = GET_SIZE(HEADER(bp));
+        if (!GET_ALLOC(HEADER(bp))) { //the checks for free blocks
+		/* Check 1: are all free blocks in the correct free list? */
+		list = 0;
+		while ((list < LISTS - 1) && (size > 1)) { //select correct free list
+    			size >>= 1;
+    			list++;
+  		}
+		current = segregated_free_list[list];
+		found = 0;
+		while (current != NULL) { //scan the free list for the node
+			if (current == bp) { //found desired node; break from loop
+				found = 1;
+				break;
+			}
+    			current = PREDECESSOR(current);
+  		}
+		if (!found) { //if it wasn't found, report error
+			check = 0;
+			printf("Block not in correct free list\n");
+		}
+	}
 	bp = NEXT(bp);
     }
     
     /* Check epilogue header */
     if ((GET_SIZE(HEADER(bp)) != 0) || !(GET_ALLOC(HEADER(bp)))) {
         check = 0;
-	    printf("Bad epilogue header\n");
+	printf("Bad epilogue header\n");
     }
     
     return check;
