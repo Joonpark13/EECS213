@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "mm.h"
 #include "memlib.h"
@@ -35,12 +36,13 @@ team_t team = {
     "joonpark@u.northwestern.edu"
 };
 
-/* single word (4) or double word (8) alignment */
+/* single word (4) or double word (8) */
 #define ALIGNMENT 8
-#define WSIZE 4 //for headers and footers
+#define WSIZE 8 //word size, headers and footers
+#define DSIZE 16 //double word size
 #define LISTS 20 //number of free lists
 #define CHUNKSIZE (1<<12)
-#define MINBLOCK 16 //minimum block size (8 byte alignment + 4 byte headers and footers)
+#define MINBLOCK 32 //minimum block size (two 8 byte pointers + 8 byte headers and footers)
 
 /* Following macros obtained from textbook, page 857 */
 
@@ -52,8 +54,8 @@ team_t team = {
 #define PACK(size, alloc) ((size) | (alloc))
 
 /* Read and write a word at address p */
-#define READ(p) (*(unsigned int *)(p))
-#define WRITE(p, val) (*(unsigned int *)(p) = (val))
+#define READ(p) (*(uint64_t *)(p))
+#define WRITE(p, val) (*(uint64_t *)(p) = (val))
 
 /* Read the size and allocated fields from address p */
 #define GET_SIZE(p) (READ(p) & ~0x7)
@@ -61,11 +63,11 @@ team_t team = {
 
 /* Given block ptr bp, compute address of its header */
 #define HEADER(bp) ((char *)(bp) - WSIZE)
-#define FOOTER(bp) ((char *)(bp) + GET_SIZE(HEADER(bp)) - ALIGNMENT)
+#define FOOTER(bp) ((char *)(bp) + GET_SIZE(HEADER(bp)) - DSIZE)
 
 /* Given block ptr bp, compute address of (physically) next and previous blocks */
 #define NEXT(bp) ((char *)(bp) + GET_SIZE((char *)(bp) - WSIZE))
-#define PREVIOUS(bp) ((char *)(bp) - GET_SIZE((char *)(bp) - ALIGNMENT))
+#define PREVIOUS(bp) ((char *)(bp) - GET_SIZE((char *)(bp) - DSIZE))
 
 /* end macros from textbook*/
 
@@ -74,7 +76,7 @@ team_t team = {
 #define SUCCESSOR(bp) ((char *)(bp) + 8) //pointer is size 8
 
 // Store predecessor or successor pointer for free blocks; works like write but ensures casting 
-#define SET_PTR(p, val) (*(unsigned int *)(p) = (unsigned int)(val))
+#define SET_PTR(p, val) (*(uint64_t *)(p) = (uint64_t)(val))
 
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
@@ -319,6 +321,7 @@ int mm_check(void)
     int list = 0;
     while (list < LISTS) { //scan through each free list
         bp = segregated_free_list[list];
+	list++;
         while (bp != NULL) {
             if (GET_ALLOC(bp)) { //if list is allocated, error and break to next segregated list
                 check = 0;
@@ -327,11 +330,10 @@ int mm_check(void)
             }
             bp = PREDECESSOR(bp);
         }
-	list++;
     }
     
     /* Check prologue header */
-    if ((GET_SIZE(HEADER(heap_start)) != ALIGNMENT) || !GET_ALLOC(HEADER(heap_start))) {
+    if ((GET_SIZE(HEADER(heap_start)) != DSIZE) || !GET_ALLOC(HEADER(heap_start))) {
         check = 0;
 	    printf("Bad prologue header\n");
     }
@@ -377,10 +379,10 @@ int mm_init(void)
     if ((start = mem_sbrk(4*WSIZE)) == (void *)-1)
         return -1;
     WRITE(start, 0);                              // Alignment padding
-    WRITE(start + (1*WSIZE), PACK(ALIGNMENT, 1)); // Prologue header
-    WRITE(start + (2*WSIZE), PACK(ALIGNMENT, 1)); // Prologue footer
+    WRITE(start + (1*WSIZE), PACK(DSIZE, 1)); // Prologue header
+    WRITE(start + (2*WSIZE), PACK(DSIZE, 1)); // Prologue footer
     WRITE(start + (3*WSIZE), PACK(0, 1));    // Epilogue header
-    heap_start = start + ALIGNMENT; //heap starts past prologue header
+    heap_start = start + DSIZE; //heap starts past prologue header
     
     /* Extend empty heap with free block of CHUNKSIZE bytes */
     if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
