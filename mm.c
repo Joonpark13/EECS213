@@ -345,11 +345,7 @@ int mm_check(void)
     bp = heap_start;
     size = GET_SIZE(HEADER(bp));
     while (size > 0) {
-        /* 
-        * add checks for:
-        * are there overlapping allocated blocks?
-        */
-	size = GET_SIZE(HEADER(bp));
+       	size = GET_SIZE(HEADER(bp));
         if (!GET_ALLOC(HEADER(bp))) { //the checks for free blocks
 		/* Check 1: are all free blocks in the correct free list? */
 		list = 0;
@@ -375,8 +371,6 @@ int mm_check(void)
 			check = 0;
 			printf("Contiguous free blocks that should have been coalesced.\n");
 		}
-	}
-	else { //the checks for allocated blocks
 	}
 	bp = NEXT(bp);
     }
