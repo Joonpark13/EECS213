@@ -36,7 +36,7 @@ team_t team = {
     "joonpark@u.northwestern.edu"
 };
 
-/* single word (4) or double word (8) */
+/* single word (8) or double word (16) */
 #define ALIGNMENT 8
 #define WSIZE 8 //word size, headers and footers
 #define DSIZE 16 //double word size
@@ -85,7 +85,7 @@ team_t team = {
 //#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 /* Global variables */
-void *segregated_free_list[LISTS];
+void * const segregated_free_list;
 char *heap_start;
 
 /* Helper function headers */
@@ -184,7 +184,7 @@ static void insert_node(void *bp)
   
   /* Select location on list to insert pointer while keeping list
      organized by byte size in ascending order. To insert after insert_ptr, before search_ptr */
-  search_ptr = segregated_free_list[list];
+  search_ptr = *(segregated_free_list + (8*list));
   while ((search_ptr != NULL) && (size > GET_SIZE(HEADER(search_ptr)))) {
     insert_ptr = search_ptr;
     search_ptr = PREDECESSOR(search_ptr);
@@ -203,7 +203,7 @@ static void insert_node(void *bp)
       SET_PTR(SUCCESSOR(bp), NULL);
       
       /* Add block to appropriate list */
-      segregated_free_list[list] = bp;
+      *(segregated_free_list + (8*list)) = bp;
     }
   } else {
     if (insert_ptr != NULL) { //Case 3: end of list
@@ -215,7 +215,7 @@ static void insert_node(void *bp)
       SET_PTR(SUCCESSOR(bp), NULL);
       
       /* Add block to appropriate list */
-      segregated_free_list[list] = bp;
+      *(segregated_free_list + (8*list)) = bp;
     }
   }
 
@@ -242,13 +242,13 @@ static void delete_node(void *bp)
             SET_PTR(PREDECESSOR(SUCCESSOR(bp)), PREDECESSOR(bp));
         } else { //Case 2: end of list
             SET_PTR(SUCCESSOR(PREDECESSOR(bp)), NULL);
-            segregated_free_list[list] = PREDECESSOR(bp);
+            *(segregated_free_list + (8*list)) = PREDECESSOR(bp);
         }
     } else {
         if (SUCCESSOR(bp) != NULL) { // beginning of list
             SET_PTR(PREDECESSOR(SUCCESSOR(bp)), NULL);
         } else { //Case 4: only item on list
-            segregated_free_list[list] = NULL;
+            *(segregated_free_list + (8*list)) = NULL;
         }
     }
     
@@ -270,7 +270,7 @@ static void *find_fit(size_t asize)
         list++;
     }
     
-    bp = segregated_free_list[list]; //set bp to the appropriate free list
+    bp = *(segregated_free_list + (8*list)); //set bp to the appropriate free list
     
     /* Search for first fit on selected list */
     while ((bp != NULL) && (asize > GET_SIZE(HEADER(bp)))) {
@@ -309,6 +309,8 @@ static void place(void *bp, size_t asize)
 * mm_check: checks the heap for the following, returns 0 if errors and 1 otherwise:
 * are all items in free list marked as free?
 * are the prologue and epilogue blocks correct?
+* are all free blocks in the correct free list?
+* are the contiguous free blocks that should have been coalesced?
 */
 int mm_check(void)
 {
@@ -321,7 +323,7 @@ int mm_check(void)
     
     /* Check the segregated free list to ensure all entries are free */
     while (list < LISTS) { //scan through each free list
-        bp = segregated_free_list[list];
+        bp = *(segregated_free_list + (8*list));
 	list++;
         while (bp != NULL) {
             if (GET_ALLOC(bp)) { //if list is allocated, error and break to next segregated list
@@ -345,7 +347,6 @@ int mm_check(void)
     while (size > 0) {
         /* 
         * add checks for:
-        * are there contiguous free blocks? (i.e. blocks that should have been coalesced)
         * are there overlapping allocated blocks?
         */
 	size = GET_SIZE(HEADER(bp));
@@ -356,7 +357,7 @@ int mm_check(void)
     			size >>= 1;
     			list++;
   		}
-		current = segregated_free_list[list];
+		current = *(segregated_free_list + (8*list));
 		found = 0;
 		while (current != NULL) { //scan the free list for the node
 			if (current == bp) { //found desired node; break from loop
@@ -369,6 +370,13 @@ int mm_check(void)
 			check = 0;
 			printf("Block not in correct free list\n");
 		}
+		/* Check 2: Are there contiguous free blocks that should have been coalesced? */
+		if (!GET_ALLOC(HEADER(NEXT(bp)))) { //if the next block is free
+			check = 0;
+			printf("Contiguous free blocks that should have been coalesced.\n");
+		}
+	}
+	else { //the checks for allocated blocks
 	}
 	bp = NEXT(bp);
     }
@@ -387,12 +395,13 @@ int mm_check(void)
  */
 int mm_init(void)
 {
-    int list;
+    int list = 0;
     char *start; //pointer to beginning of heap
     
     /* Initialize segregated free list */
-    for (list = 0; list < LISTS; list++) {
-        segregated_free_list[list] = NULL;
+    while (list < LISTS) {
+	*(segregated_free_list + (8*list)) = NULL; //8 is pointer size
+	list++;
     }
     
     /* Obtained from textbook page 858 */
