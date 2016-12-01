@@ -104,8 +104,7 @@ int mm_check(void);
 /*
 * Extend heap: extends heap by aligned number of bytes, coalescing as needed and modifying segregated list
 */
-static void *extend_heap(size_t words)
-{
+static void *extend_heap(size_t words) {
     char *bp;                   
     size_t size;
     
@@ -127,8 +126,7 @@ static void *extend_heap(size_t words)
 /*
 * Coalesce: combines a free block with free blocks next to it in physical memory, modifying segregated list as needed
 */
-static void *coalesce(void *bp)
-{
+static void *coalesce(void *bp) {
     size_t prev_alloc = GET_ALLOC(HEADER(PREVIOUS(bp)));
     size_t next_alloc = GET_ALLOC(HEADER(NEXT(bp)));
     size_t size = GET_SIZE(HEADER(bp));
@@ -169,8 +167,7 @@ static void *coalesce(void *bp)
 * Insert_node: Places a node on the appropriate segregated list, and keeps the list sorted by ascending size
 * Each segregated list spans values from [2^n, 2^(n+1)) in segregated_free_list[n]
 */
-static void insert_node(void *bp) 
-{
+static void insert_node(void *bp) {
   int list = 0;
   void *search_ptr = bp;
   void *insert_ptr = NULL;
@@ -225,8 +222,7 @@ static void insert_node(void *bp)
 /*
 * delete_node: Removes node from the relevant segregated list
 */
-static void delete_node(void *bp) 
-{
+static void delete_node(void *bp) {
     int list = 0;
     size_t size = GET_SIZE(HEADER(bp));
     
@@ -422,8 +418,7 @@ int mm_init(void)
  * mm_malloc - Allocate a block by incrementing the brk pointer.
  *     Always allocate a block whose size is a multiple of the alignment.
  */
-void *mm_malloc(size_t size)
-{
+void *mm_malloc(size_t size) {
     //int newsize = ALIGN(size + SIZE_T_SIZE);
     //size_t newsize = (ALIGN(size) + ALIGNMENT) // align size and add space for header  
 
@@ -435,15 +430,13 @@ void *mm_malloc(size_t size)
 /*
  * mm_free - Freeing a block does nothing.
  */
-void mm_free(void *ptr)
-{
+void mm_free(void *ptr) {
 }
 
 /*
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
-void *mm_realloc(void *ptr, size_t size)
-{
+void *mm_realloc(void *ptr, size_t size) {
     /* void *oldptr = ptr;
     void *newptr;
     size_t copySize;
@@ -460,17 +453,4 @@ void *mm_realloc(void *ptr, size_t size)
     */
     return ptr;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
