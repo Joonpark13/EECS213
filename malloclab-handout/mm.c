@@ -168,27 +168,27 @@ static void *coalesce(void *bp) {
 * Each segregated list spans values from [2^n, 2^(n+1)) in segregated_free_list[n]
 */
 static void insert_node(void *bp) {
-  int list = 0;
-  void *search_ptr = bp;
-  void *insert_ptr = NULL;
-  size_t size = GET_SIZE(HEADER(bp));
-  
-  /* Select segregated list */
-  while ((list < LISTS - 1) && (size > 1)) {
+    int list = 0;
+    void *search_ptr = bp;
+    void *insert_ptr = NULL;
+    size_t size = GET_SIZE(HEADER(bp));
+
+    /* Select segregated list */
+    while ((list < LISTS - 1) && (size > 1)) {
     size >>= 1;
     list++;
-  }
-  
-  /* Select location on list to insert pointer while keeping list
+    }
+
+    /* Select location on list to insert pointer while keeping list
      organized by byte size in ascending order. To insert after insert_ptr, before search_ptr */
-  search_ptr = *(segregated_free_list + (8*list));
-  while ((search_ptr != NULL) && (size > GET_SIZE(HEADER(search_ptr)))) {
+    search_ptr = *(segregated_free_list + (8*list));
+    while ((search_ptr != NULL) && (size > GET_SIZE(HEADER(search_ptr)))) {
     insert_ptr = search_ptr;
     search_ptr = PREDECESSOR(search_ptr);
-  }
-  
-  /* Set predecessor and successor */
-  if (search_ptr != NULL) {
+    }
+
+    /* Set predecessor and successor */
+    if (search_ptr != NULL) {
     if (insert_ptr != NULL) { //Case 1: middle of list
       SET_PTR(PREDECESSOR(bp), search_ptr); 
       SET_PTR(SUCCESSOR(search_ptr), bp);
@@ -202,7 +202,7 @@ static void insert_node(void *bp) {
       /* Add block to appropriate list */
       *(segregated_free_list + (8*list)) = bp;
     }
-  } else {
+    } else {
     if (insert_ptr != NULL) { //Case 3: end of list
       SET_PTR(PREDECESSOR(bp), NULL);
       SET_PTR(SUCCESSOR(bp), insert_ptr);
@@ -214,9 +214,9 @@ static void insert_node(void *bp) {
       /* Add block to appropriate list */
       *(segregated_free_list + (8*list)) = bp;
     }
-  }
+    }
 
-  return;
+    return;
 }
 
 /*
@@ -254,8 +254,7 @@ static void delete_node(void *bp) {
 /*
 * find_fit: performs first-fit search of the segregated free list, which is sorted by size
 */
-static void *find_fit(size_t asize)
-{
+static void *find_fit(size_t asize) {
     void *bp;
     int list = 0;
     size_t size = asize;
@@ -279,8 +278,7 @@ static void *find_fit(size_t asize)
 /*
 * place: puts the requested block at the beginning of the located free block, splitting iff the remainder >= min block size
 */
-static void place(void *bp, size_t asize)
-{
+static void place(void *bp, size_t asize) {
     size_t size = GET_SIZE(HEADER(bp));
     
     delete_node(bp); //remove from free list
@@ -308,8 +306,7 @@ static void place(void *bp, size_t asize)
 * are all free blocks in the correct free list?
 * are the contiguous free blocks that should have been coalesced?
 */
-int mm_check(void)
-{
+int mm_check(void) {
     int check = 1; //set default return, no errors
     void *bp; 
     void *current;
@@ -383,30 +380,29 @@ int mm_check(void)
 /* 
  * mm_init - initialize the malloc package. Returns -1 if problem, 0 otherwise
  */
-int mm_init(void)
-{
+int mm_init(void) {
     int list = 0;
     char *start; //pointer to beginning of heap
     
     /* Initialize segregated free list */
     while (list < LISTS) {
-	*(segregated_free_list + (8*list)) = NULL; //8 is pointer size
+	*(segregated_free_list + (8 * list)) = NULL; //8 is pointer size
 	list++;
     }
     
     /* Obtained from textbook page 858 */
     
     /* Create initial empty heap */
-    if ((start = mem_sbrk(4*WSIZE)) == (void *)-1)
+    if ((start = mem_sbrk(4 * WSIZE)) == (void *)-1)
         return -1;
     WRITE(start, 0);                              // Alignment padding
-    WRITE(start + (1*WSIZE), PACK(DSIZE, 1)); // Prologue header
-    WRITE(start + (2*WSIZE), PACK(DSIZE, 1)); // Prologue footer
-    WRITE(start + (3*WSIZE), PACK(0, 1));    // Epilogue header
+    WRITE(start + (1 * WSIZE), PACK(DSIZE, 1)); // Prologue header
+    WRITE(start + (2 * WSIZE), PACK(DSIZE, 1)); // Prologue footer
+    WRITE(start + (3 * WSIZE), PACK(0, 1));    // Epilogue header
     heap_start = start + DSIZE; //heap starts past prologue header
     
     /* Extend empty heap with free block of CHUNKSIZE bytes */
-    if (extend_heap(CHUNKSIZE/WSIZE) == NULL)
+    if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
         return -1;
     
     /* End obtained from textbook */
@@ -419,18 +415,34 @@ int mm_init(void)
  *     Always allocate a block whose size is a multiple of the alignment.
  */
 void *mm_malloc(size_t size) {
-    //int newsize = ALIGN(size + SIZE_T_SIZE);
-    //size_t newsize = (ALIGN(size) + ALIGNMENT) // align size and add space for header  
-
-    /*ignore spurious request*/
+    // Ignore suprious requests.
     if (size == 0)
         return NULL;
+
+    // Find the corresponding SFL pointer for the given size.
+    // Iterate through the linked list until a free block is found, or end of linked list is reached.
+    //
+    // If free block is found, mark as allocated, adjust size if necessary (and create new split free block), and return pointer to block.
+    // If end of linked list is reached, search the next SFL one size up.
+    // If end of LAST linked list is reached, extend the size of the heap as needed, mark as allocated, and return pointer to block.
 }
 
 /*
  * mm_free - Freeing a block does nothing.
  */
 void mm_free(void *ptr) {
+    // Check to see if previous (in mem space) block is free
+    // If so, coalesce with prev. block.
+    // Adjust size in header as necessary.
+    //
+    // Check to see if next (in mem space) block is free
+    // If so, coalesce with next block.
+    // Adjust size in header as necessary.
+    //
+    // Mark block as free in header.
+    //
+    // Find the corresponding SFL for the size of the block after coalescing is done, if any was performed.
+    // Insert block into the beginning of the linked list.
 }
 
 /*
