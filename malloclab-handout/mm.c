@@ -43,6 +43,7 @@ team_t team = {
 #define LISTS 20 //number of free lists
 #define CHUNKSIZE (1<<12)
 #define MINBLOCK 32 //minimum block size (two 8 byte pointers + 8 byte headers and footers)
+#define PTRSIZE 8
 
 /* Following macros obtained from textbook, page 857 */
 
@@ -73,7 +74,7 @@ team_t team = {
 
 /* Given block ptr bp, compute address of predecessor and successor */
 #define PREDECESSOR(bp) (char *)(bp)
-#define SUCCESSOR(bp) ((char *)(bp) + 8) //pointer is size 8
+#define SUCCESSOR(bp) ((char *)(bp) + PTRSIZE)
 
 // Store predecessor or successor pointer for free blocks; works like write but ensures casting 
 #define SET_PTR(p, val) (*(uint64_t *)(p) = (uint64_t)(val))
@@ -95,6 +96,7 @@ static void insert_node(void *bp);
 static void delete_node(void *bp);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
+static size_t nearest_pow2(size_t size);
 
 /* Heap check header */
 int mm_check(void);
@@ -165,7 +167,7 @@ static void *coalesce(void *bp) {
 
 /*
 * Insert_node: Places a node on the appropriate segregated list, and keeps the list sorted by ascending size
-* Each segregated list spans values from [2^n, 2^(n+1)) in segregated_free_list[n]
+* Each segregated list spans values from [2^n, 2^(n+1)) in segregated_free_list + PTRSIZE * n
 */
 static void insert_node(void *bp) {
     int list = 0;
@@ -181,7 +183,7 @@ static void insert_node(void *bp) {
 
     /* Select location on list to insert pointer while keeping list
      organized by byte size in ascending order. To insert after insert_ptr, before search_ptr */
-    search_ptr = *(segregated_free_list + (8*list));
+    search_ptr = *(segregated_free_list + (PTRSIZE * list));
     while ((search_ptr != NULL) && (size > GET_SIZE(HEADER(search_ptr)))) {
     insert_ptr = search_ptr;
     search_ptr = PREDECESSOR(search_ptr);
@@ -200,7 +202,7 @@ static void insert_node(void *bp) {
       SET_PTR(SUCCESSOR(bp), NULL);
       
       /* Add block to appropriate list */
-      *(segregated_free_list + (8*list)) = bp;
+      *(segregated_free_list + (PTRSIZE * list)) = bp;
     }
     } else {
     if (insert_ptr != NULL) { //Case 3: end of list
@@ -212,7 +214,7 @@ static void insert_node(void *bp) {
       SET_PTR(SUCCESSOR(bp), NULL);
       
       /* Add block to appropriate list */
-      *(segregated_free_list + (8*list)) = bp;
+      *(segregated_free_list + (PTRSIZE * list)) = bp;
     }
     }
 
@@ -238,13 +240,13 @@ static void delete_node(void *bp) {
             SET_PTR(PREDECESSOR(SUCCESSOR(bp)), PREDECESSOR(bp));
         } else { //Case 2: end of list
             SET_PTR(SUCCESSOR(PREDECESSOR(bp)), NULL);
-            *(segregated_free_list + (8*list)) = PREDECESSOR(bp);
+            *(segregated_free_list + (PTRSIZE * list)) = PREDECESSOR(bp);
         }
     } else {
         if (SUCCESSOR(bp) != NULL) { // beginning of list
             SET_PTR(PREDECESSOR(SUCCESSOR(bp)), NULL);
         } else { //Case 4: only item on list
-            *(segregated_free_list + (8*list)) = NULL;
+            *(segregated_free_list + (PTRSIZE * list)) = NULL;
         }
     }
     
@@ -265,7 +267,7 @@ static void *find_fit(size_t asize) {
         list++;
     }
     
-    bp = *(segregated_free_list + (8*list)); //set bp to the appropriate free list
+    bp = *(segregated_free_list + (PTRSIZE * list)); //set bp to the appropriate free list
     
     /* Search for first fit on selected list */
     while ((bp != NULL) && (asize > GET_SIZE(HEADER(bp)))) {
@@ -300,6 +302,19 @@ static void place(void *bp, size_t asize) {
 }
 
 /*
+ * nearest_log2: computes the nearest upper log base 2 of the input.
+ */
+static int nearest_log2(size_t size) {
+    int count = 0;
+    while (size > 1) {
+        size = size >> 1;
+        count++;
+    }
+
+    return count;
+}
+
+/*
 * mm_check: checks the heap for the following, returns 0 if errors and 1 otherwise:
 * are all items in free list marked as free?
 * are the prologue and epilogue blocks correct?
@@ -316,7 +331,7 @@ int mm_check(void) {
     
     /* Check the segregated free list to ensure all entries are free */
     while (list < LISTS) { //scan through each free list
-        bp = *(segregated_free_list + (8*list));
+        bp = *(segregated_free_list + (PTRSIZE * list));
 	list++;
         while (bp != NULL) {
             if (GET_ALLOC(bp)) { //if list is allocated, error and break to next segregated list
@@ -346,7 +361,7 @@ int mm_check(void) {
     			size >>= 1;
     			list++;
   		}
-		current = *(segregated_free_list + (8*list));
+		current = *(segregated_free_list + (PTRSIZE * list));
 		found = 0;
 		while (current != NULL) { //scan the free list for the node
 			if (current == bp) { //found desired node; break from loop
@@ -386,7 +401,7 @@ int mm_init(void) {
     
     /* Initialize segregated free list */
     while (list < LISTS) {
-	*(segregated_free_list + (8 * list)) = NULL; //8 is pointer size
+	*(segregated_free_list + (PTRSIZE * list)) = NULL;
 	list++;
     }
     
@@ -420,6 +435,8 @@ void *mm_malloc(size_t size) {
         return NULL;
 
     // Find the corresponding SFL pointer for the given size.
+    void *selected_list = segregated_free_list + (PTRSIZE * nearest_log2(size));
+    
     // Iterate through the linked list until a free block is found, or end of linked list is reached.
     //
     // If free block is found, mark as allocated, adjust size if necessary (and create new split free block), and return pointer to block.
