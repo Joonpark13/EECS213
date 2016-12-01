@@ -441,20 +441,16 @@ void mm_free(void *ptr) {
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
 void *mm_realloc(void *ptr, size_t size) {
-    /* void *oldptr = ptr;
-    void *newptr;
-    size_t copySize;
-    
-    newptr = mm_malloc(size);
-    if (newptr == NULL)
-      return NULL;
-    copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-    if (size < copySize)
-      copySize = size;
-    memcpy(newptr, oldptr, copySize);
-    mm_free(oldptr);
-    return newptr; 
-    */
-    return ptr;
+    // If input size is equal to current size of block,
+    // return the same pointer (suprious request)
+    //
+    // If input size is smaller than current size of block,
+    // shrink size of block, add remaining free block to corresponding SFL
+    // return the same pointer
+    //
+    // If input size is greater, check if the block directly after or before it (in mem space) has enough space to accomodate.
+    // If so, un-coalesce with relevant block, return relevant pointer.
+    //
+    // If not, use free and malloc to re-allocate space somewhere else.
 }
 
