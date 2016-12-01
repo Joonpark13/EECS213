@@ -431,15 +431,7 @@ void *mm_malloc(size_t size) {
  * mm_free - Freeing a block does nothing.
  */
 void mm_free(void *ptr) {
-    // Check to see if previous (in mem space) block is free
-    // If so, coalesce with prev. block.
-    // Adjust size in header as necessary.
-    //
-    // Check to see if next (in mem space) block is free
-    // If so, coalesce with next block.
-    // Adjust size in header as necessary.
-    //
-    // Mark block as free in header.
+    // Coalesce as needed.
     //
     // Find the corresponding SFL for the size of the block after coalescing is done, if any was performed.
     // Insert block into the beginning of the linked list.
