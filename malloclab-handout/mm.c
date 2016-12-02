@@ -187,7 +187,7 @@ static void insert_node(void *bp) {
 
     /* Select location on list to insert pointer while keeping list
      organized by byte size in ascending order. To insert after insert_ptr, before search_ptr */
-    //search_ptr = *(segregated_free_list + (PTRSIZE * list));
+    search_ptr = access_list(1, list, NULL);
     while ((search_ptr != NULL) && (size > GET_SIZE(HEADER(search_ptr)))) {
         insert_ptr = search_ptr;
         search_ptr = PREDECESSOR(search_ptr);
@@ -206,7 +206,7 @@ static void insert_node(void *bp) {
           SET_PTR(SUCCESSOR_PTR(bp), NULL);
           
           /* Add block to appropriate list */
-          //*(segregated_free_list + (PTRSIZE * list)) = bp;
+          access_list(0, list, bp);
         }
     } else {
         if (insert_ptr != NULL) { //Case 3: end of list
@@ -218,7 +218,7 @@ static void insert_node(void *bp) {
           SET_PTR(SUCCESSOR_PTR(bp), NULL);
           
           /* Add block to appropriate list */
-          //*(segregated_free_list + (PTRSIZE * list)) = bp;
+          access_list(0, list, bp);
         }
     }
 
@@ -244,13 +244,13 @@ static void delete_node(void *bp) {
             SET_PTR(PREDECESSOR_PTR(SUCCESSOR(bp)), PREDECESSOR(bp));
         } else { //Case 2: end of list
             SET_PTR(SUCCESSOR_PTR(PREDECESSOR(bp)), NULL);
-            //*(segregated_free_list + (PTRSIZE * list)) = PREDECESSOR(bp);
+            access_list(0, list, PREDECESSOR(bp));
         }
     } else {
         if (SUCCESSOR(bp) != NULL) { // beginning of list
             SET_PTR(PREDECESSOR_PTR(SUCCESSOR(bp)), NULL);
         } else { //Case 4: only item on list
-            //*(segregated_free_list + (PTRSIZE * list)) = NULL;
+            access_list(0, list, NULL);
         }
     }
     
@@ -272,7 +272,8 @@ static void *find_fit(size_t asize) {
     }
 
     while (list < LISTS - 1) {
-        //bp = *(segregated_free_list + (PTRSIZE * list)); // Set bp to the appropriate free list
+        // Set bp to the appropriate free list
+        bp = access_list(1, list, NULL);
         
         /* Search for first fit on selected list */
         while ((bp != NULL) && (asize > GET_SIZE(HEADER(bp)))) {
@@ -343,7 +344,7 @@ int mm_check(void) {
     
     /* Check the segregated free list to ensure all entries are free */
     while (list < LISTS) { //scan through each free list
-        //bp = *(segregated_free_list + (PTRSIZE * list));
+        bp = access_list(1, list, NULL);
 	list++;
         while (bp != NULL) {
             if (GET_ALLOC(bp)) { //if list is allocated, error and break to next segregated list
@@ -373,7 +374,7 @@ int mm_check(void) {
     			size >>= 1;
     			list++;
   		}
-		//current = *(segregated_free_list + (PTRSIZE * list));
+                current = access_list(1, list, NULL);
 		found = 0;
 		while (current != NULL) { //scan the free list for the node
 			if (current == bp) { //found desired node; break from loop
@@ -409,11 +410,6 @@ int mm_check(void) {
  */
 int mm_init(void) {
     char *start = access_list(0, 0, NULL);
-    
-    /* Initialize segregated free list */
-    for (unsigned int i = 0; i < LISTS; i++) {
-        sfl[i] = NULL;
-    }
     
     /* Obtained from textbook page 858 */
     
