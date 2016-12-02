@@ -440,7 +440,13 @@ void *mm_malloc(size_t size) {
     if (size == 0)
         return NULL;
 
-    size_t adj_size = ALIGN(size + DSIZE); // Align block size to include header and footer
+    size_t adj_size;
+
+    if (size <= DSIZE) {
+        adj_size = MINBLOCK;
+    } else {
+        adj_size = ALIGN(size+DSIZE);
+    }
     
     void *bp = find_fit(adj_size);
 
