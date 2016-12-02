@@ -470,6 +470,8 @@ void mm_free(void *ptr) {
 
     WRITE(HEADER(ptr), PACK(size, 0));
     WRITE(FOOTER(ptr), PACK(size, 0));
+	
+    insert_node(ptr);
     coalesce(ptr);
 }
 
