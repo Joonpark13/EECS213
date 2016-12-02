@@ -466,13 +466,16 @@ void *mm_malloc(size_t size) {
  * mm_free - Freeing a block does nothing.
  */
 void mm_free(void *ptr) {
-    size_t size = GET_SIZE(HEADER(ptr));
+    if (GET_ALLOC(HEADER(ptr))) { //only free allocated blocks
+    	size_t size = GET_SIZE(HEADER(ptr));
 
-    WRITE(HEADER(ptr), PACK(size, 0));
-    WRITE(FOOTER(ptr), PACK(size, 0));
+    	WRITE(HEADER(ptr), PACK(size, 0));
+    	WRITE(FOOTER(ptr), PACK(size, 0));
 	
-    insert_node(ptr);
-    coalesce(ptr);
+    	insert_node(ptr);
+    	coalesce(ptr);
+    }
+    return;
 }
 
 /*
