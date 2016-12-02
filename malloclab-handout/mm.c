@@ -110,11 +110,11 @@ int mm_check(void);
 /*
 * Extend heap: extends heap by aligned number of bytes, coalescing as needed and modifying segregated list
 */
-static void *extend_heap(size_t words) {
+static void *extend_heap(size_t bytes) {
     char *bp;                   
     size_t size;
     
-    size = ALIGN(words);
+    size = ALIGN(bytes);
     
     if ((bp = mem_sbrk(size)) == (void *)-1)
         return NULL;
@@ -423,7 +423,7 @@ int mm_init(void) {
     heap_start = start + DSIZE; //heap starts past prologue header
     
     /* Extend empty heap with free block of CHUNKSIZE bytes */
-    if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
+    if (extend_heap(CHUNKSIZE) == NULL)
         return -1;
     
     /* End obtained from textbook */
@@ -450,7 +450,7 @@ void *mm_malloc(size_t size) {
     }
 
     size_t extend_size = MAX(adj_size, CHUNKSIZE);
-    if ((bp = extend_heap(extend_size / WSIZE)) == NULL)
+    if ((bp = extend_heap(extend_size)) == NULL)
         return NULL; // In case of error
     place(bp, adj_size);
     return bp;
