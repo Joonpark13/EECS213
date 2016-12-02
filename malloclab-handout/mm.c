@@ -91,7 +91,6 @@ team_t team = {
 //#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 /* Global variables */
-char **const sfl;
 char *heap_start;
 
 /* Helper function headers */
@@ -101,6 +100,7 @@ static void insert_node(void *bp);
 static void delete_node(void *bp);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
+static void *access_list(int read, int index, void *ptr);
 
 /* Heap check header */
 int mm_check(void);
@@ -312,6 +312,21 @@ static void place(void *bp, size_t asize) {
 }
 
 /*
+ * access: reads and writes from the segregated free list, stored as a static array only ever accessed within this function
+ * it must always return a pointer however, leading to some stylistic difficulties that could be avoided with the use of a global array
+ */
+static void *access_list(int read, int index, void *ptr) {
+    static void *segregated_free_list[LISTS] = { NULL }; // initialize the free list: occurs only once, values remain same for program life
+
+    if (read) { // read, so return value at index
+        return segregated_free_list[index];
+    }
+
+    segregated_free_list[index] = ptr; // write, so set value at index to the correct pointer
+    return NULL;
+}
+
+/*
 * mm_check: checks the heap for the following, returns 0 if errors and 1 otherwise:
 * are all items in free list marked as free?
 * are the prologue and epilogue blocks correct?
@@ -393,8 +408,7 @@ int mm_check(void) {
  * mm_init - initialize the malloc package. Returns -1 if problem, 0 otherwise
  */
 int mm_init(void) {
-    int list = 0;
-    char *start; // Pointer to beginning of heap
+    char *start = access_list(0, 0, NULL);
     
     /* Initialize segregated free list */
     for (unsigned int i = 0; i < LISTS; i++) {
