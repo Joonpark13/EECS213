@@ -42,7 +42,7 @@ team_t team = {
 #define DSIZE 16 //double word size
 #define LISTS 20 //number of free lists
 #define CHUNKSIZE (1<<12)
-#define PTRSIZE 16
+#define PTRSIZE 8
 #define MINBLOCK (DSIZE + (PTRSIZE * 2)) //minimum block size (two pointers + 8 byte headers and footers)
 
 /* Following macros obtained from textbook, page 857 */
@@ -91,7 +91,7 @@ team_t team = {
 //#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 /* Global variables */
-char *(*segregated_free_list)[LISTS];
+char **const sfl;
 char *heap_start;
 
 /* Helper function headers */
@@ -397,9 +397,8 @@ int mm_init(void) {
     char *start; // Pointer to beginning of heap
     
     /* Initialize segregated free list */
-    while (list < LISTS) {
-	(*segregated_free_list)[list] = NULL;
-	list++;
+    for (unsigned int i = 0; i < LISTS; i++) {
+        sfl[i] = NULL;
     }
     
     /* Obtained from textbook page 858 */
