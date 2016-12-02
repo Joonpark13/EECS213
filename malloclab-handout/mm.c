@@ -42,8 +42,8 @@ team_t team = {
 #define DSIZE 16 //double word size
 #define LISTS 20 //number of free lists
 #define CHUNKSIZE (1<<12)
-#define MINBLOCK 48 //minimum block size (two 16 byte pointers + 8 byte headers and footers)
 #define PTRSIZE 16
+#define MINBLOCK (DSIZE + (PTRSIZE * 2)) //minimum block size (two pointers + 8 byte headers and footers)
 
 /* Following macros obtained from textbook, page 857 */
 
@@ -82,7 +82,7 @@ team_t team = {
 #define SUCCESSOR(bp) *(((char **)(bp) + PTRSIZE))
 
 // Store predecessor or successor pointer for free blocks; works like write but ensures casting 
-#define SET_PTR(p, val) (*(uint128_t *)(p) = (uint128_t)(val))
+#define SET_PTR(p, val) (*(uintptr_t *)(p) = (uintptr_t)(val))
 
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
