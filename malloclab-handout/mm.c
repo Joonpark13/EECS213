@@ -101,6 +101,7 @@ static void insert_node(void *bp);
 static void delete_node(void *bp);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
+static size_t nearest_pow2(size_t size);
 
 /* Heap check header */
 int mm_check(void);
@@ -309,6 +310,19 @@ static void place(void *bp, size_t asize) {
     }
     
     return;
+}
+
+/*
+ * nearest_log2: computes the nearest upper log base 2 of the input.
+ */
+static int nearest_log2(size_t size) {
+    int count = 0;
+    while (size > 1) {
+        size = size >> 1;
+        count++;
+    }
+
+    return count;
 }
 
 /*
