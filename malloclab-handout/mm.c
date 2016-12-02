@@ -43,6 +43,7 @@ team_t team = {
 #define LISTS 20 //number of free lists
 #define CHUNKSIZE (1<<12)
 #define MINBLOCK 32 //minimum block size (two 8 byte pointers + 8 byte headers and footers)
+#define PTRSIZE 8
 
 /* Following macros obtained from textbook, page 857 */
 
@@ -71,9 +72,14 @@ team_t team = {
 
 /* end macros from textbook*/
 
+/* Given block ptr bp, compute address of predecessor and successor ptrs */
+#define PREDECESSOR_PTR(bp) (char *)(bp)
+#define SUCCESSOR_PTR(bp) ((char *)(bp) + PTRSIZE)
+
+
 /* Given block ptr bp, compute address of predecessor and successor */
-#define PREDECESSOR(bp) (char *)(bp)
-#define SUCCESSOR(bp) ((char *)(bp) + 8) //pointer is size 8
+#define PREDECESSOR(bp) *((char **)(bp))
+#define SUCCESSOR(bp) *(((char **)(bp) + PTRSIZE))
 
 // Store predecessor or successor pointer for free blocks; works like write but ensures casting 
 #define SET_PTR(p, val) (*(uint64_t *)(p) = (uint64_t)(val))
@@ -85,7 +91,7 @@ team_t team = {
 //#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 /* Global variables */
-void * const segregated_free_list;
+char *(*segregated_free_list)[LISTS];
 char *heap_start;
 
 /* Helper function headers */
@@ -164,56 +170,56 @@ static void *coalesce(void *bp) {
 }
 
 /*
-* Insert_node: Places a node on the appropriate segregated list, and keeps the list sorted by ascending size
-* Each segregated list spans values from [2^n, 2^(n+1)) in segregated_free_list[n]
-*/
+ * Insert_node: Places a node on the appropriate segregated list, and keeps the list sorted by ascending size
+ * Each segregated list spans values from [2^n, 2^(n+1)) in segregated_free_list + PTRSIZE * n
+ */
 static void insert_node(void *bp) {
     int list = 0;
-    void *search_ptr = bp;
+    void *search_ptr;
     void *insert_ptr = NULL;
     size_t size = GET_SIZE(HEADER(bp));
 
     /* Select segregated list */
     while ((list < LISTS - 1) && (size > 1)) {
-    size >>= 1;
-    list++;
+        size >>= 1;
+        list++;
     }
 
     /* Select location on list to insert pointer while keeping list
      organized by byte size in ascending order. To insert after insert_ptr, before search_ptr */
-    search_ptr = *(segregated_free_list + (8*list));
+    //search_ptr = *(segregated_free_list + (PTRSIZE * list));
     while ((search_ptr != NULL) && (size > GET_SIZE(HEADER(search_ptr)))) {
-    insert_ptr = search_ptr;
-    search_ptr = PREDECESSOR(search_ptr);
+        insert_ptr = search_ptr;
+        search_ptr = PREDECESSOR(search_ptr);
     }
 
     /* Set predecessor and successor */
     if (search_ptr != NULL) {
-    if (insert_ptr != NULL) { //Case 1: middle of list
-      SET_PTR(PREDECESSOR(bp), search_ptr); 
-      SET_PTR(SUCCESSOR(search_ptr), bp);
-      SET_PTR(SUCCESSOR(bp), insert_ptr);
-      SET_PTR(PREDECESSOR(insert_ptr), bp);
-    } else { //Case 2: beginning of list
-      SET_PTR(PREDECESSOR(bp), search_ptr); 
-      SET_PTR(SUCCESSOR(search_ptr), bp);
-      SET_PTR(SUCCESSOR(bp), NULL);
-      
-      /* Add block to appropriate list */
-      *(segregated_free_list + (8*list)) = bp;
-    }
+        if (insert_ptr != NULL) { //Case 1: middle of list
+          SET_PTR(PREDECESSOR_PTR(bp), search_ptr); 
+          SET_PTR(SUCCESSOR_PTR(search_ptr), bp);
+          SET_PTR(SUCCESSOR_PTR(bp), insert_ptr);
+          SET_PTR(PREDECESSOR_PTR(insert_ptr), bp);
+        } else { //Case 2: beginning of list
+          SET_PTR(PREDECESSOR_PTR(bp), search_ptr); 
+          SET_PTR(SUCCESSOR_PTR(search_ptr), bp);
+          SET_PTR(SUCCESSOR_PTR(bp), NULL);
+          
+          /* Add block to appropriate list */
+          //*(segregated_free_list + (PTRSIZE * list)) = bp;
+        }
     } else {
-    if (insert_ptr != NULL) { //Case 3: end of list
-      SET_PTR(PREDECESSOR(bp), NULL);
-      SET_PTR(SUCCESSOR(bp), insert_ptr);
-      SET_PTR(PREDECESSOR(insert_ptr), bp);
-    } else { //Case 4: only item on list
-      SET_PTR(PREDECESSOR(bp), NULL);
-      SET_PTR(SUCCESSOR(bp), NULL);
-      
-      /* Add block to appropriate list */
-      *(segregated_free_list + (8*list)) = bp;
-    }
+        if (insert_ptr != NULL) { //Case 3: end of list
+          SET_PTR(PREDECESSOR_PTR(bp), NULL);
+          SET_PTR(SUCCESSOR_PTR(bp), insert_ptr);
+          SET_PTR(PREDECESSOR_PTR(insert_ptr), bp);
+        } else { //Case 4: only item on list
+          SET_PTR(PREDECESSOR_PTR(bp), NULL);
+          SET_PTR(SUCCESSOR_PTR(bp), NULL);
+          
+          /* Add block to appropriate list */
+          //*(segregated_free_list + (PTRSIZE * list)) = bp;
+        }
     }
 
     return;
@@ -234,17 +240,17 @@ static void delete_node(void *bp) {
     
     if (PREDECESSOR(bp) != NULL) {
         if (SUCCESSOR(bp) != NULL) { //Case 1: middle of list
-            SET_PTR(SUCCESSOR(PREDECESSOR(bp)), SUCCESSOR(bp));
-            SET_PTR(PREDECESSOR(SUCCESSOR(bp)), PREDECESSOR(bp));
+            SET_PTR(SUCCESSOR_PTR(PREDECESSOR(bp)), SUCCESSOR(bp));
+            SET_PTR(PREDECESSOR_PTR(SUCCESSOR(bp)), PREDECESSOR(bp));
         } else { //Case 2: end of list
-            SET_PTR(SUCCESSOR(PREDECESSOR(bp)), NULL);
-            *(segregated_free_list + (8*list)) = PREDECESSOR(bp);
+            SET_PTR(SUCCESSOR_PTR(PREDECESSOR(bp)), NULL);
+            //*(segregated_free_list + (PTRSIZE * list)) = PREDECESSOR(bp);
         }
     } else {
         if (SUCCESSOR(bp) != NULL) { // beginning of list
-            SET_PTR(PREDECESSOR(SUCCESSOR(bp)), NULL);
+            SET_PTR(PREDECESSOR_PTR(SUCCESSOR(bp)), NULL);
         } else { //Case 4: only item on list
-            *(segregated_free_list + (8*list)) = NULL;
+            //*(segregated_free_list + (PTRSIZE * list)) = NULL;
         }
     }
     
@@ -255,7 +261,7 @@ static void delete_node(void *bp) {
 * find_fit: performs first-fit search of the segregated free list, which is sorted by size
 */
 static void *find_fit(size_t asize) {
-    void *bp;
+    void *bp; // Block Pointer
     int list = 0;
     size_t size = asize;
     
@@ -264,15 +270,21 @@ static void *find_fit(size_t asize) {
         size >>= 1;
         list++;
     }
-    
-    bp = *(segregated_free_list + (8*list)); //set bp to the appropriate free list
-    
-    /* Search for first fit on selected list */
-    while ((bp != NULL) && (asize > GET_SIZE(HEADER(bp)))) {
-        bp = PREDECESSOR(bp);
+
+    while (list < LISTS - 1) {
+        //bp = *(segregated_free_list + (PTRSIZE * list)); // Set bp to the appropriate free list
+        
+        /* Search for first fit on selected list */
+        while ((bp != NULL) && (asize > GET_SIZE(HEADER(bp)))) {
+            bp = PREDECESSOR(bp);
+        }
+
+        if (bp != NULL)
+            return bp;
+
+        list++; // If no free block of appropriate size is found, search the next list
     }
-    
-    return bp;
+    return NULL;
 }
 
 /*
@@ -281,17 +293,17 @@ static void *find_fit(size_t asize) {
 static void place(void *bp, size_t asize) {
     size_t size = GET_SIZE(HEADER(bp));
     
-    delete_node(bp); //remove from free list
+    delete_node(bp); // Remove from free list
     
-    if ((size - asize) >= MINBLOCK) { //Case 1: split
+    if ((size - asize) >= MINBLOCK) { // Case 1: split
         WRITE(HEADER(bp), PACK(asize, 1));
         WRITE(FOOTER(bp), PACK(asize, 1));
         bp = NEXT(bp);
-        WRITE(HEADER(bp), PACK(size-asize, 0));
-        WRITE(FOOTER(bp), PACK(size-asize, 0));
-        insert_node(bp); //add new node to free list
+        WRITE(HEADER(bp), PACK(size - asize, 0));
+        WRITE(FOOTER(bp), PACK(size - asize, 0));
+        insert_node(bp); // Add new node to free list
     }
-    else { //Case 2: don't split
+    else { // Case 2: don't split
         WRITE(HEADER(bp), PACK(size, 1));
         WRITE(FOOTER(bp), PACK(size, 1));
     }
@@ -316,7 +328,7 @@ int mm_check(void) {
     
     /* Check the segregated free list to ensure all entries are free */
     while (list < LISTS) { //scan through each free list
-        bp = *(segregated_free_list + (8*list));
+        //bp = *(segregated_free_list + (PTRSIZE * list));
 	list++;
         while (bp != NULL) {
             if (GET_ALLOC(bp)) { //if list is allocated, error and break to next segregated list
@@ -346,7 +358,7 @@ int mm_check(void) {
     			size >>= 1;
     			list++;
   		}
-		current = *(segregated_free_list + (8*list));
+		//current = *(segregated_free_list + (PTRSIZE * list));
 		found = 0;
 		while (current != NULL) { //scan the free list for the node
 			if (current == bp) { //found desired node; break from loop
@@ -382,11 +394,11 @@ int mm_check(void) {
  */
 int mm_init(void) {
     int list = 0;
-    char *start; //pointer to beginning of heap
+    char *start; // Pointer to beginning of heap
     
     /* Initialize segregated free list */
     while (list < LISTS) {
-	*(segregated_free_list + (8 * list)) = NULL; //8 is pointer size
+	(*segregated_free_list)[list] = NULL;
 	list++;
     }
     
@@ -419,22 +431,31 @@ void *mm_malloc(size_t size) {
     if (size == 0)
         return NULL;
 
-    // Find the corresponding SFL pointer for the given size.
-    // Iterate through the linked list until a free block is found, or end of linked list is reached.
-    //
-    // If free block is found, mark as allocated, adjust size if necessary (and create new split free block), and return pointer to block.
-    // If end of linked list is reached, search the next SFL one size up.
-    // If end of LAST linked list is reached, extend the size of the heap as needed, mark as allocated, and return pointer to block.
+    size_t adj_size = ALIGN(size + DSIZE); // Align block size to include header and footer
+    
+    void *bp = find_fit(adj_size);
+
+    if (bp != NULL) {
+        place(bp, adj_size);
+        return bp;
+    }
+
+    size_t extend_size = MAX(adj_size, CHUNKSIZE);
+    if ((bp = extend_heap(extend_size / WSIZE)) == NULL)
+        return NULL; // In case of error
+    place(bp, adj_size);
+    return bp;
 }
 
 /*
  * mm_free - Freeing a block does nothing.
  */
 void mm_free(void *ptr) {
-    // Coalesce as needed.
-    //
-    // Find the corresponding SFL for the size of the block after coalescing is done, if any was performed.
-    // Insert block into the beginning of the linked list.
+    size_t size = GET_SIZE(HEADER(ptr));
+
+    WRITE(HEADER(ptr), PACK(size, 0));
+    WRITE(FOOTER(ptr), PACK(size, 0));
+    coalesce(ptr);
 }
 
 /*
@@ -452,5 +473,6 @@ void *mm_realloc(void *ptr, size_t size) {
     // If so, un-coalesce with relevant block, return relevant pointer.
     //
     // If not, use free and malloc to re-allocate space somewhere else.
+    return 0;
 }
 
