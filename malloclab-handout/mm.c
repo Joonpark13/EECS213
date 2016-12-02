@@ -78,8 +78,8 @@ team_t team = {
 
 
 /* Given block ptr bp, compute address of predecessor and successor */
-#define PREDECESSOR(bp) *((char **)(bp))
-#define SUCCESSOR(bp) *(((char **)(bp) + PTRSIZE))
+#define PREDECESSOR(bp) (*(char **)(bp))
+#define SUCCESSOR(bp) (*(char **)(SUCCESSOR_PTR(bp)))
 
 // Store predecessor or successor pointer for free blocks; works like write but ensures casting 
 #define SET_PTR(p, val) (*(uintptr_t *)(p) = (uintptr_t)(val))
