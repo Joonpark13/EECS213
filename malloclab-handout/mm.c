@@ -16,8 +16,6 @@
 #include <string.h>
 #include <stdint.h>
 
-#include <assert.h>
-
 #include "mm.h"
 #include "memlib.h"
 
@@ -221,11 +219,11 @@ static void delete_node(void *bp) {
         }
     } else {
         if (SUCCESSOR(bp) != NULL) { // Case 3: beginning of list
-            assert(access_list(1, list, NULL) == bp);
+            // assert(access_list(1, list, NULL) == bp);
             SET_PTR(PREDECESSOR_PTR(SUCCESSOR(bp)), NULL);
             access_list(0, list, SUCCESSOR(bp));
         } else { //Case 4: only item on list
-            assert(access_list(1, list, NULL) == bp);
+            // assert(access_list(1, list, NULL) == bp);
             access_list(0, list, NULL);
         }
     }
@@ -257,7 +255,7 @@ static void *find_fit(size_t asize) {
         }
 
         if (bp != NULL) {
-            assert(GET_SIZE(HEADER(bp)) >= asize);
+            // assert(GET_SIZE(HEADER(bp)) >= asize);
             return bp;
         }
 
@@ -295,7 +293,7 @@ static void place(void *bp, size_t asize) {
  * it must always return a pointer however, leading to some stylistic difficulties that could be avoided with the use of a global array
  */
 static void *access_list(int read, int index, void *ptr) {
-    assert(index < LISTS);
+    // assert(index < LISTS);
     static void *segregated_free_list[LISTS] = { NULL }; // initialize the free list: occurs only once, values remain same for program life
 
     if (read) { // read, so return value at index
