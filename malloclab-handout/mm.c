@@ -566,16 +566,21 @@ void *mm_realloc(void *ptr, size_t size) {
 	}
 	return newptr;
     }
-    /*
+    
+    copySize = GET_SIZE(HEADER(oldptr));
+    
     if ((!prev_alloc) && (GET_SIZE(HEADER(PREVIOUS(oldptr))) + current_size >= new_size)) {
     	newptr = PREVIOUS(oldptr);
+	temp_size = GET_SIZE(HEADER(newptr));
+	remainder = (current_size + temp_size) - new_size;
         delete_node(newptr);
-        // Update header and footer
-        WRITE(HEADER(newptr), PACK(new_size, 1));
-        WRITE(FOOTER(newptr), PACK(new_size, 1));
-	// copy memory
+	// update header + footer, copy memory
+        WRITE(HEADER(newptr), PACK((current_size + temp_size), 1));
+	memcpy(newptr, oldptr, copySize);
+        WRITE(FOOTER(newptr), PACK((current_size + temp_size), 1));
+
+	return newptr;
     }
-    */      
         
     newptr = mm_malloc(size);
     if (newptr == NULL)
