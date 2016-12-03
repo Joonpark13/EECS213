@@ -90,7 +90,7 @@ team_t team = {
 #define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
 
 
-//#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
+#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 /* Global variables */
 char *heap_start;
@@ -499,6 +499,45 @@ void mm_free(void *ptr) {
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
 void *mm_realloc(void *ptr, size_t size) {
+    if (ptr == NULL)
+        return mm_malloc(size);
+    if (size == 0) {
+        mm_free(ptr);
+        return NULL;
+    }
+
+    size_t current_size = GET_SIZE(HEADER(ptr));
+    if (current_size >= size + DSIZE) { // If the current block size is sufficient
+        /*
+        size_t remainder = current_size - size;
+        // Make sure the difference in size is > min block size
+        if (remainder >= MINBLOCK) {
+            WRITE(HEADER(ptr), PACK(size, 1));
+            WRITE(FOOTER(ptr), PACK(size, 1));
+            void *next_ptr = NEXT(ptr);
+            WRITE(HEADER(next_ptr), PACK(remainder, 0));
+            WRITE(FOOTER(next_ptr), PACK(remainder, 0));
+            insert_node(next_ptr); // Add new node to free list
+            coalesce(next_ptr);
+        }
+        */
+        return ptr;
+    }
+
+
+    void *oldptr = ptr;
+    void *newptr;
+    size_t copySize;
+
+    newptr = mm_malloc(size);
+    if (newptr == NULL)
+        return NULL;
+    copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
+    if (size < copySize)
+        copySize = size;
+    memcpy(newptr, oldptr, copySize);
+    mm_free(oldptr);
+    return newptr;
     // If input size is equal to current size of block,
     // return the same pointer (suprious request)
     //
