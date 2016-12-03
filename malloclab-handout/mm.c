@@ -509,7 +509,15 @@ void *mm_realloc(void *ptr, size_t size) {
     }
 
     size_t current_size = GET_SIZE(HEADER(ptr));
-    size_t new_size = size + DSIZE;
+    size_t new_size;
+	
+    /* Have new_size meet alignment reqs */
+    if (size <= DSIZE) {
+        new_size = MINBLOCK;
+    } else {
+        new_size = ALIGN(size + DSIZE);
+    }
+	
     if (current_size >= new_size) { // If the current block size is sufficient
         size_t remainder = current_size - new_size;
         // Make sure the difference in size is > min block size
@@ -534,21 +542,13 @@ void *mm_realloc(void *ptr, size_t size) {
     size_t next_alloc = GET_ALLOC(HEADER(NEXT(oldptr)));
 
     // Utilize potentially free adjacent memory space
-    if (!prev_alloc) {
-        if (GET_SIZE(HEADER(PREVIOUS(oldptr))) + current_size >= new_size) {
-            newptr = PREVIOUS(oldptr);
-            delete_node(newptr);
-            // Update header
-            WRITE(HEADER(newptr), PACK(new_size, 1));
-            WRITE(FOOTER(newptr), PACK(new_size, 1));
-            // Copy memory
-            copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-            if (size < copySize)
-                copySize = size;
-            memcpy(newptr, oldptr, copySize);
-            mm_free(oldptr);
-            return newptr;
-        }
+    if ((!prev_alloc) && (GET_SIZE(HEADER(PREVIOUS(oldptr))) + current_size >= new_size)) 
+    	newptr = PREVIOUS(oldptr);
+        delete_node(newptr);
+        // Update header and footer
+        WRITE(HEADER(newptr), PACK(new_size, 1));
+        WRITE(FOOTER(newptr), PACK(new_size, 1));
+	// copy memory
     }
     */
             
