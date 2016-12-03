@@ -176,8 +176,6 @@ static void *coalesce(void *bp) {
  */
 static void insert_node(void *bp) {
     int list = 0;
-    void *search_ptr;
-    void *insert_ptr = NULL;
     size_t size = GET_SIZE(HEADER(bp));
 
     /* Select segregated list */
@@ -186,48 +184,18 @@ static void insert_node(void *bp) {
         list++;
     }
 
-    size = GET_SIZE(HEADER(bp));
+    void *sfl_ptr = access_list(1, list, NULL);
 
-
-    /* Select location on list to insert pointer while keeping list
-     organized by byte size in ascending order. To insert after insert_ptr, before search_ptr */
-    search_ptr = access_list(1, list, NULL);
-    while ((search_ptr != NULL) && (size > GET_SIZE(HEADER(search_ptr)))) {
-        insert_ptr = search_ptr;
-        search_ptr = PREDECESSOR(search_ptr);
-    }
-
-    /* Set predecessor and successor */
-    if (search_ptr != NULL) {
-        if (insert_ptr != NULL) { //Case 1: middle of list
-          SET_PTR(PREDECESSOR_PTR(bp), search_ptr); 
-          SET_PTR(SUCCESSOR_PTR(search_ptr), bp);
-          SET_PTR(SUCCESSOR_PTR(bp), insert_ptr);
-          SET_PTR(PREDECESSOR_PTR(insert_ptr), bp);
-        } else { //Case 2: beginning of list
-          SET_PTR(PREDECESSOR_PTR(bp), search_ptr); 
-          SET_PTR(SUCCESSOR_PTR(search_ptr), bp);
-          SET_PTR(SUCCESSOR_PTR(bp), NULL);
-          
-          /* Add block to appropriate list */
-          assert(access_list(1, list, NULL) == search_ptr);
-          access_list(0, list, bp);
-        }
+    if (sfl_ptr == NULL) { // List is empty
+        SET_PTR(PREDECESSOR_PTR(bp), NULL);
+        SET_PTR(SUCCESSOR_PTR(bp), NULL);
+        access_list(0, list, bp);
     } else {
-        if (insert_ptr != NULL) { //Case 3: end of list
-          SET_PTR(PREDECESSOR_PTR(bp), NULL);
-          SET_PTR(SUCCESSOR_PTR(bp), insert_ptr);
-          SET_PTR(PREDECESSOR_PTR(insert_ptr), bp);
-        } else { //Case 4: only item on list
-          SET_PTR(PREDECESSOR_PTR(bp), NULL);
-          SET_PTR(SUCCESSOR_PTR(bp), NULL);
-          
-          /* Add block to appropriate list */
-          assert(access_list(1, list, NULL) == search_ptr);
-          access_list(0, list, bp);
-        }
+        SET_PTR(PREDECESSOR_PTR(bp), NULL);
+        SET_PTR(SUCCESSOR_PTR(bp), sfl_ptr);
+        SET_PTR(PREDECESSOR_PTR(sfl_ptr), bp);
+        access_list(0, list, bp);
     }
-
     return;
 }
 
@@ -250,12 +218,12 @@ static void delete_node(void *bp) {
             SET_PTR(PREDECESSOR_PTR(SUCCESSOR(bp)), PREDECESSOR(bp));
         } else { //Case 2: end of list
             SET_PTR(SUCCESSOR_PTR(PREDECESSOR(bp)), NULL);
-            assert(access_list(1, list, NULL) == bp);
-            access_list(0, list, PREDECESSOR(bp));
         }
     } else {
-        if (SUCCESSOR(bp) != NULL) { // beginning of list
+        if (SUCCESSOR(bp) != NULL) { // Case 3: beginning of list
+            assert(access_list(1, list, NULL) == bp);
             SET_PTR(PREDECESSOR_PTR(SUCCESSOR(bp)), NULL);
+            access_list(0, list, SUCCESSOR(bp));
         } else { //Case 4: only item on list
             assert(access_list(1, list, NULL) == bp);
             access_list(0, list, NULL);
