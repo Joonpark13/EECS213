@@ -537,6 +537,7 @@ void *mm_realloc(void *ptr, size_t size) {
     void *oldptr = ptr;
     void *newptr;
     void *temp;
+    void *next_ptr;
     size_t temp_size;
     size_t copySize;
 
@@ -555,7 +556,7 @@ void *mm_realloc(void *ptr, size_t size) {
         if (remainder >= MINBLOCK) {
             WRITE(HEADER(ptr), PACK(new_size, 1));
             WRITE(FOOTER(ptr), PACK(new_size, 1));
-            void *next_ptr = NEXT(oldptr);
+            next_ptr = NEXT(oldptr);
             WRITE(HEADER(next_ptr), PACK(remainder, 0));
             WRITE(FOOTER(next_ptr), PACK(remainder, 0));
             insert_node(next_ptr); // Add new node to free list
@@ -574,10 +575,18 @@ void *mm_realloc(void *ptr, size_t size) {
 	temp_size = GET_SIZE(HEADER(newptr));
 	remainder = (current_size + temp_size) - new_size;
         delete_node(newptr);
+	if (remainder < MINBLOCK) // we won't split, so update new_size
+	    new_size = current_size + temp_size;
 	// update header + footer, copy memory
-        WRITE(HEADER(newptr), PACK((current_size + temp_size), 1));
+        WRITE(HEADER(newptr), PACK(new_size, 1));
 	memcpy(newptr, oldptr, copySize);
-        WRITE(FOOTER(newptr), PACK((current_size + temp_size), 1));
+        WRITE(FOOTER(newptr), PACK(new_size, 1));
+	if (remainder >= MINBLOCK) { //split if can
+	    next_ptr = NEXT(newptr);
+            WRITE(HEADER(next_ptr), PACK(remainder, 0));
+            WRITE(FOOTER(next_ptr), PACK(remainder, 0));
+            insert_node(next_ptr); // Add new node to free list
+	}
 
 	return newptr;
     }
