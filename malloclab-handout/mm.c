@@ -16,6 +16,8 @@
 #include <string.h>
 #include <stdint.h>
 
+#include <assert.h>
+
 #include "mm.h"
 #include "memlib.h"
 
@@ -63,18 +65,18 @@ team_t team = {
 #define GET_ALLOC(p) (READ(p) & 0x1)
 
 /* Given block ptr bp, compute address of its header */
-#define HEADER(bp) ((char *)(bp) - WSIZE)
-#define FOOTER(bp) ((char *)(bp) + GET_SIZE(HEADER(bp)) - DSIZE)
+#define HEADER(bp) (((char *)(bp)) - WSIZE)
+#define FOOTER(bp) (((char *)(bp)) + GET_SIZE(HEADER(bp)) - DSIZE)
 
 /* Given block ptr bp, compute address of (physically) next and previous blocks */
-#define NEXT(bp) ((char *)(bp) + GET_SIZE((char *)(bp) - WSIZE))
-#define PREVIOUS(bp) ((char *)(bp) - GET_SIZE((char *)(bp) - DSIZE))
+#define NEXT(bp) (((char *)(bp)) + GET_SIZE((char *)(bp) - WSIZE))
+#define PREVIOUS(bp) (((char *)(bp)) - GET_SIZE((char *)(bp) - DSIZE))
 
 /* end macros from textbook*/
 
 /* Given block ptr bp, compute address of predecessor and successor ptrs */
 #define PREDECESSOR_PTR(bp) (char *)(bp)
-#define SUCCESSOR_PTR(bp) ((char *)(bp) + PTRSIZE)
+#define SUCCESSOR_PTR(bp) (((char *)(bp)) + PTRSIZE)
 
 
 /* Given block ptr bp, compute address of predecessor and successor */
@@ -140,8 +142,7 @@ static void *coalesce(void *bp) {
 
     if (prev_alloc && next_alloc) {                         // Case 1
         return bp;
-    }
-    else if (prev_alloc && !next_alloc) {                   // Case 2
+    } else if (prev_alloc && !next_alloc) {                   // Case 2
         delete_node(bp); //need to delete nodes from free list
         delete_node(NEXT(bp));
         size += GET_SIZE(HEADER(NEXT(bp)));
@@ -185,6 +186,9 @@ static void insert_node(void *bp) {
         list++;
     }
 
+    size = GET_SIZE(HEADER(bp));
+
+
     /* Select location on list to insert pointer while keeping list
      organized by byte size in ascending order. To insert after insert_ptr, before search_ptr */
     search_ptr = access_list(1, list, NULL);
@@ -206,6 +210,7 @@ static void insert_node(void *bp) {
           SET_PTR(SUCCESSOR_PTR(bp), NULL);
           
           /* Add block to appropriate list */
+          assert(access_list(1, list, NULL) == search_ptr);
           access_list(0, list, bp);
         }
     } else {
@@ -218,6 +223,7 @@ static void insert_node(void *bp) {
           SET_PTR(SUCCESSOR_PTR(bp), NULL);
           
           /* Add block to appropriate list */
+          assert(access_list(1, list, NULL) == search_ptr);
           access_list(0, list, bp);
         }
     }
@@ -226,8 +232,8 @@ static void insert_node(void *bp) {
 }
 
 /*
-* delete_node: Removes node from the relevant segregated list
-*/
+ * delete_node: Removes node from the relevant segregated list
+ */
 static void delete_node(void *bp) {
     int list = 0;
     size_t size = GET_SIZE(HEADER(bp));
@@ -237,19 +243,21 @@ static void delete_node(void *bp) {
         size >>= 1;
         list++;
     }
-    
+   
     if (PREDECESSOR(bp) != NULL) {
         if (SUCCESSOR(bp) != NULL) { //Case 1: middle of list
             SET_PTR(SUCCESSOR_PTR(PREDECESSOR(bp)), SUCCESSOR(bp));
             SET_PTR(PREDECESSOR_PTR(SUCCESSOR(bp)), PREDECESSOR(bp));
         } else { //Case 2: end of list
             SET_PTR(SUCCESSOR_PTR(PREDECESSOR(bp)), NULL);
+            assert(access_list(1, list, NULL) == bp);
             access_list(0, list, PREDECESSOR(bp));
         }
     } else {
         if (SUCCESSOR(bp) != NULL) { // beginning of list
             SET_PTR(PREDECESSOR_PTR(SUCCESSOR(bp)), NULL);
         } else { //Case 4: only item on list
+            assert(access_list(1, list, NULL) == bp);
             access_list(0, list, NULL);
         }
     }
@@ -258,8 +266,8 @@ static void delete_node(void *bp) {
 }
 
 /*
-* find_fit: performs first-fit search of the segregated free list, which is sorted by size
-*/
+ * find_fit: performs first-fit search of the segregated free list, which is sorted by size
+ */
 static void *find_fit(size_t asize) {
     void *bp; // Block Pointer
     int list = 0;
@@ -280,8 +288,10 @@ static void *find_fit(size_t asize) {
             bp = PREDECESSOR(bp);
         }
 
-        if (bp != NULL)
+        if (bp != NULL) {
+            assert(GET_SIZE(HEADER(bp)) >= asize);
             return bp;
+        }
 
         list++; // If no free block of appropriate size is found, search the next list
     }
@@ -317,6 +327,7 @@ static void place(void *bp, size_t asize) {
  * it must always return a pointer however, leading to some stylistic difficulties that could be avoided with the use of a global array
  */
 static void *access_list(int read, int index, void *ptr) {
+    assert(index < LISTS);
     static void *segregated_free_list[LISTS] = { NULL }; // initialize the free list: occurs only once, values remain same for program life
 
     if (read) { // read, so return value at index
@@ -409,7 +420,13 @@ int mm_check(void) {
  * mm_init - initialize the malloc package. Returns -1 if problem, 0 otherwise
  */
 int mm_init(void) {
-    char *start = access_list(0, 0, NULL);
+    // Clear all values in our segregated free list
+    int i;
+    for (i = 0; i < LISTS; i++) {
+        access_list(0, i, NULL);
+    }
+
+    char *start;
     
     /* Obtained from textbook page 858 */
     
@@ -463,7 +480,7 @@ void *mm_malloc(size_t size) {
 }
 
 /*
- * mm_free - Freeing a block does nothing.
+ * mm_free - 
  */
 void mm_free(void *ptr) {
     if (GET_ALLOC(HEADER(ptr))) { //only free allocated blocks
