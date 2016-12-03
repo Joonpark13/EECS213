@@ -1,13 +1,27 @@
 /*
- * mm-naive.c - The fastest, least memory-efficient malloc package.
+ * mm.c - A moderately effective malloc package
  * 
- * In this naive approach, a block is allocated by simply incrementing
- * the brk pointer.  A block is pure payload. There are no headers or
- * footers.  Blocks are never coalesced or reused. Realloc is
- * implemented directly using mm_malloc and mm_free.
+ * In this approach, a block is allocated by first searching for a fit
+ * on a segregated free list, then extending the heap iff a fit is not found
  *
- * NOTE TO STUDENTS: Replace this header comment with your own header
- * comment that gives a high level description of your solution.
+ * Free blocks are coalesced with adjacent free blocks in physical memory as they are freed
+ * Realloc first checks if the request can be accomodated by the current block + adjacent free blocks
+ * if not, it works in terms of malloc and free
+ * 
+ * Blocks are of form:
+ * | Header | Payload | Footer |
+ * where header and footer are word size
+ *
+ * A free block includes pointers to the predecessor and successor on the free list
+ * so looks like:
+ * | Header | Pred_ptr | Succ_ptr | remaining payload, if any | Footer |
+ * where pred_ptr and succ_ptr are pointers
+ *
+ * therefore there is a minimum block size of (DSIZE + 2*PTRSIZE) to accomodate header, footer, and two pointers
+ * 
+ * the list of segregated free lists is mantained as a static local variable within a helper function access list
+ * this function manages all reads and writes to the list of segregated free lists
+ * each individual segregated free list is sorted by size and searched linearly for a first fit
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -382,6 +396,8 @@ int mm_check(void) {
     return check;
 }
 
+/* mm_malloc package */
+
 /* 
  * mm_init - initialize the malloc package. Returns -1 if problem, 0 otherwise
  */
@@ -415,8 +431,9 @@ int mm_init(void) {
 }
 
 /* 
- * mm_malloc - Allocate a block by incrementing the brk pointer.
- *     Always allocate a block whose size is a multiple of the alignment.
+ * mm_malloc:
+ * always allocates an aligned block size
+ * searches a segregated free list for a fit, and only extends heap if a fit is not found
  */
 void *mm_malloc(size_t size) {
     // Ignore suprious requests.
@@ -442,11 +459,14 @@ void *mm_malloc(size_t size) {
     if ((bp = extend_heap(extend_size)) == NULL)
         return NULL; // In case of error
     place(bp, adj_size);
+
+    //mm_check();
     return bp;
 }
 
 /*
- * mm_free - 
+ * mm_free:
+ * only frees allocated blocks, modifying free list and coalescing as needed
  */
 void mm_free(void *ptr) {
     if (GET_ALLOC(HEADER(ptr))) { //only free allocated blocks
@@ -458,11 +478,14 @@ void mm_free(void *ptr) {
     	insert_node(ptr);
     	coalesce(ptr);
     }
+    //mm_check();
     return;
 }
 
 /*
- * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
+ * mm_realloc:
+ * Checks if can accomodate request with current block + adjacent free blocks in physical memory
+ * if not, allocates a new block in terms of mm_malloc and mm_free
  */
 void *mm_realloc(void *ptr, size_t size) {
     if (!GET_ALLOC(HEADER(ptr)))
@@ -504,7 +527,8 @@ void *mm_realloc(void *ptr, size_t size) {
     void *newptr;
     void *temp;
     void *next_ptr;
-    size_t temp_size;
+    size_t prev_size = GET_SIZE(HEADER(PREVIOUS(oldptr)));
+    size_t next_size = GET_SIZE(HEADER(NEXT(oldptr)));
     size_t copySize;
 
     size_t prev_alloc = GET_ALLOC(HEADER(PREVIOUS(oldptr)));
@@ -512,11 +536,11 @@ void *mm_realloc(void *ptr, size_t size) {
 
     // Utilize potentially free adjacent memory space
 
-    if ((!next_alloc) && (GET_SIZE(HEADER(NEXT(oldptr))) + current_size >= new_size)) {
+    /* is next free and able to accomodate request? */
+    if ((!next_alloc) && (next_size + current_size >= new_size)) {
         newptr = oldptr;
         temp = NEXT(oldptr);
-	temp_size = GET_SIZE(HEADER(temp));
-	remainder = (current_size + temp_size) - new_size;
+	remainder = (current_size + next_size) - new_size;
 	delete_node(temp);
 	//split if can
         if (remainder >= MINBLOCK) {
@@ -528,26 +552,26 @@ void *mm_realloc(void *ptr, size_t size) {
             insert_node(next_ptr); // Add new node to free list
             coalesce(next_ptr);
         } else {
-	    WRITE(HEADER(newptr), PACK((current_size + temp_size), 1));
-	    WRITE(FOOTER(newptr), PACK((current_size + temp_size), 1));
+	    WRITE(HEADER(newptr), PACK((current_size + next_size), 1));
+	    WRITE(FOOTER(newptr), PACK((current_size + next_size), 1));
 	}
 	return newptr;
     }
-    
+
     copySize = GET_SIZE(HEADER(oldptr));
-    
-    if ((!prev_alloc) && (GET_SIZE(HEADER(PREVIOUS(oldptr))) + current_size >= new_size)) {
+
+    /* is prev free and able to accomodate request? */
+    if ((!prev_alloc) && (prev_size + current_size >= new_size)) {
     	newptr = PREVIOUS(oldptr);
-	temp_size = GET_SIZE(HEADER(newptr));
-	remainder = (current_size + temp_size) - new_size;
+	remainder = (current_size + prev_size) - new_size;
         delete_node(newptr);
 	if (remainder < MINBLOCK) // we won't split, so update new_size
-	    new_size = current_size + temp_size;
+	    new_size = current_size + prev_size;
 	// update header + footer, copy memory
         WRITE(HEADER(newptr), PACK(new_size, 1));
 	memcpy(newptr, oldptr, copySize);
         WRITE(FOOTER(newptr), PACK(new_size, 1));
-	if (remainder >= MINBLOCK) { //split if can
+	if (remainder >= MINBLOCK) { // split if can
 	    next_ptr = NEXT(newptr);
             WRITE(HEADER(next_ptr), PACK(remainder, 0));
             WRITE(FOOTER(next_ptr), PACK(remainder, 0));
@@ -556,27 +580,38 @@ void *mm_realloc(void *ptr, size_t size) {
 
 	return newptr;
     }
-        
+
+    /* are prev and next free, and able to accomodate request? */
+    if ((!prev_alloc) && (!next_alloc) && (prev_size + next_size + current_size >= new_size)) {
+        newptr = PREVIOUS(oldptr);
+	temp = NEXT(oldptr);
+	remainder = (current_size + prev_size + next_size) - new_size;
+	delete_node(newptr);
+	delete_node(temp);
+	if (remainder < MINBLOCK) // we won't split, so update new_size
+	    new_size = current_size + prev_size + next_size;
+	// update header + footer, copy memory
+	WRITE(HEADER(newptr), PACK(new_size, 1));
+	memcpy(newptr, oldptr, copySize);
+	WRITE(FOOTER(newptr), PACK(new_size, 1));
+	if (remainder >= MINBLOCK) { // split if can
+	    next_ptr = NEXT(newptr);
+	    WRITE(HEADER(next_ptr), PACK(remainder, 0));
+	    WRITE(FOOTER(next_ptr), PACK(remainder, 0));
+	    insert_node(next_ptr); // Add new node to free list
+	}
+
+	return newptr;
+    }
+
+    /* If can't accomodate with adjacent free blocks, allocate a new block */
     newptr = mm_malloc(size);
     if (newptr == NULL)
         return NULL;
-    copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
     if (size < copySize)
         copySize = size;
     memcpy(newptr, oldptr, copySize);
     mm_free(oldptr);
     return newptr;
-    // If input size is equal to current size of block,
-    // return the same pointer (suprious request)
-    //
-    // If input size is smaller than current size of block,
-    // shrink size of block, add remaining free block to corresponding SFL
-    // return the same pointer
-    //
-    // If input size is greater, check if the block directly after or before it (in mem space) has enough space to accomodate.
-    // If so, un-coalesce with relevant block, return relevant pointer.
-    //
-    // If not, use free and malloc to re-allocate space somewhere else.
-    return 0;
 }
 
