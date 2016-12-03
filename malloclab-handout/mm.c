@@ -507,9 +507,10 @@ void *mm_realloc(void *ptr, size_t size) {
         mm_free(ptr);
         return NULL;
     }
-
+	
     size_t current_size = GET_SIZE(HEADER(ptr));
     size_t new_size;
+    size_t remainder;
 	
     /* Have new_size meet alignment reqs */
     if (size <= DSIZE) {
@@ -519,7 +520,7 @@ void *mm_realloc(void *ptr, size_t size) {
     }
 	
     if (current_size >= new_size) { // If the current block size is sufficient
-        size_t remainder = current_size - new_size;
+        remainder = current_size - new_size;
         // Make sure the difference in size is > min block size
         if (remainder >= MINBLOCK) {
             WRITE(HEADER(ptr), PACK(new_size, 1));
@@ -535,14 +536,38 @@ void *mm_realloc(void *ptr, size_t size) {
 
     void *oldptr = ptr;
     void *newptr;
+    void *temp;
+    size_t temp_size;
     size_t copySize;
 
-    /*
     size_t prev_alloc = GET_ALLOC(HEADER(PREVIOUS(oldptr)));
     size_t next_alloc = GET_ALLOC(HEADER(NEXT(oldptr)));
 
     // Utilize potentially free adjacent memory space
-    if ((!prev_alloc) && (GET_SIZE(HEADER(PREVIOUS(oldptr))) + current_size >= new_size)) 
+
+    if ((!next_alloc) && (GET_SIZE(HEADER(NEXT(oldptr))) + current_size >= new_size)) {
+        newptr = oldptr;
+        temp = NEXT(oldptr);
+	temp_size = GET_SIZE(HEADER(temp));
+	remainder = (current_size + temp_size) - new_size;
+	delete_node(temp);
+	//split if can
+        if (remainder >= MINBLOCK) {
+            WRITE(HEADER(ptr), PACK(new_size, 1));
+            WRITE(FOOTER(ptr), PACK(new_size, 1));
+            void *next_ptr = NEXT(oldptr);
+            WRITE(HEADER(next_ptr), PACK(remainder, 0));
+            WRITE(FOOTER(next_ptr), PACK(remainder, 0));
+            insert_node(next_ptr); // Add new node to free list
+            coalesce(next_ptr);
+        } else {
+	    WRITE(HEADER(newptr), PACK((current_size + temp_size), 1));
+	    WRITE(FOOTER(newptr), PACK((current_size + temp_size), 1));
+	}
+	return newptr;
+    }
+    /*
+    if ((!prev_alloc) && (GET_SIZE(HEADER(PREVIOUS(oldptr))) + current_size >= new_size)) {
     	newptr = PREVIOUS(oldptr);
         delete_node(newptr);
         // Update header and footer
@@ -550,8 +575,7 @@ void *mm_realloc(void *ptr, size_t size) {
         WRITE(FOOTER(newptr), PACK(new_size, 1));
 	// copy memory
     }
-    */
-            
+    */      
         
     newptr = mm_malloc(size);
     if (newptr == NULL)
