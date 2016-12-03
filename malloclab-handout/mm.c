@@ -499,6 +499,8 @@ void mm_free(void *ptr) {
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
 void *mm_realloc(void *ptr, size_t size) {
+    if (!GET_ALLOC(HEADER(ptr)))
+        return NULL;
     if (ptr == NULL)
         return mm_malloc(size);
     if (size == 0) {
@@ -507,28 +509,50 @@ void *mm_realloc(void *ptr, size_t size) {
     }
 
     size_t current_size = GET_SIZE(HEADER(ptr));
-    if (current_size >= size + DSIZE) { // If the current block size is sufficient
-        /*
-        size_t remainder = current_size - size;
+    size_t new_size = size + DSIZE;
+    if (current_size >= new_size) { // If the current block size is sufficient
+        size_t remainder = current_size - new_size;
         // Make sure the difference in size is > min block size
         if (remainder >= MINBLOCK) {
-            WRITE(HEADER(ptr), PACK(size, 1));
-            WRITE(FOOTER(ptr), PACK(size, 1));
+            WRITE(HEADER(ptr), PACK(new_size, 1));
+            WRITE(FOOTER(ptr), PACK(new_size, 1));
             void *next_ptr = NEXT(ptr);
             WRITE(HEADER(next_ptr), PACK(remainder, 0));
             WRITE(FOOTER(next_ptr), PACK(remainder, 0));
             insert_node(next_ptr); // Add new node to free list
             coalesce(next_ptr);
         }
-        */
         return ptr;
     }
-
 
     void *oldptr = ptr;
     void *newptr;
     size_t copySize;
 
+    /*
+    size_t prev_alloc = GET_ALLOC(HEADER(PREVIOUS(oldptr)));
+    size_t next_alloc = GET_ALLOC(HEADER(NEXT(oldptr)));
+
+    // Utilize potentially free adjacent memory space
+    if (!prev_alloc) {
+        if (GET_SIZE(HEADER(PREVIOUS(oldptr))) + current_size >= new_size) {
+            newptr = PREVIOUS(oldptr);
+            delete_node(newptr);
+            // Update header
+            WRITE(HEADER(newptr), PACK(new_size, 1));
+            WRITE(FOOTER(newptr), PACK(new_size, 1));
+            // Copy memory
+            copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
+            if (size < copySize)
+                copySize = size;
+            memcpy(newptr, oldptr, copySize);
+            mm_free(oldptr);
+            return newptr;
+        }
+    }
+    */
+            
+        
     newptr = mm_malloc(size);
     if (newptr == NULL)
         return NULL;
