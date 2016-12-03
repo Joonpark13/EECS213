@@ -4,7 +4,7 @@
  * In this approach, a block is allocated by first searching for a fit
  * on a segregated free list, then extending the heap iff a fit is not found
  *
- * Free blocks are coalesced with adjacent free blocks in physical memory as they are freed
+ * Free blocks are coalesced with immediate coalescing
  * Realloc first checks if the request can be accomodated by the current block + adjacent free blocks
  * if not, it works in terms of malloc and free
  * 
@@ -21,7 +21,9 @@
  * 
  * the list of segregated free lists is mantained as a static local variable within a helper function access list
  * this function manages all reads and writes to the list of segregated free lists
- * each individual segregated free list is sorted by size and searched linearly for a first fit
+ * new elements are always inserted at the front of a segregated free list
+ * find fit checks the last element of a segregated free list and checks if it fits.
+ * if not, if moves on to the next segregated free list until a fit is found or return NULL
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -183,7 +185,7 @@ static void *coalesce(void *bp) {
 }
 
 /*
- * Insert_node: Places a node on the appropriate segregated list, and keeps the list sorted by ascending size
+ * Insert_node: Places a node at the front of the appropriate segregated list
  * Each segregated list spans values from [2^n, 2^(n+1)) in segregated_free_list + PTRSIZE * n
  */
 static void insert_node(void *bp) {
@@ -246,7 +248,7 @@ static void delete_node(void *bp) {
 }
 
 /*
- * find_fit: performs first-fit search of the segregated free list, which is sorted by size
+ * find_fit: checks if last element of segregated free list works; if not, moves onto next list
  */
 static void *find_fit(size_t asize) {
     void *bp; // Block Pointer
@@ -433,7 +435,7 @@ int mm_init(void) {
 /* 
  * mm_malloc:
  * always allocates an aligned block size
- * searches a segregated free list for a fit, and only extends heap if a fit is not found
+ * searches the segregated free lists for a fit, and only extends heap if a fit is not found
  */
 void *mm_malloc(size_t size) {
     // Ignore suprious requests.
